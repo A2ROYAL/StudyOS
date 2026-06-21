@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Study Galaxy</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:'Inter','Segoe UI',system-ui,sans-serif;}
+canvas{display:block;}
+
+/* HUD */
+#hud{position:fixed;top:0;left:0;right:0;z-index:10;display:flex;align-items:center;gap:12px;padding:14px 20px;background:linear-gradient(to bottom,rgba(0,0,0,0.7),transparent);pointer-events:none;}
+.hud-logo{font-size:16px;font-weight:800;letter-spacing:-.02em;color:#fff;pointer-events:all;cursor:pointer;text-decoration:none;display:flex;align-items:center;gap:7px;}
+.hud-logo-icon{width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,#7c3aed,#06b6d4);display:flex;align-items:center;justify-content:center;font-size:12px;}
+.hud-sp{flex:1;}
+.hud-btn{pointer-events:all;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.14);border-radius:9999px;color:rgba(255,255,255,0.8);padding:5px 13px;cursor:pointer;font-size:12px;font-weight:500;transition:all 120ms ease;font-family:inherit;backdrop-filter:blur(8px);}
+.hud-btn:hover{background:rgba(255,255,255,0.15);color:#fff;transform:scale(1.05);}
+
+/* TOOLTIP (hover) */
+#tooltip{position:fixed;pointer-events:none;z-index:20;opacity:0;transition:opacity 200ms ease;transform:translate(-50%,-130%);background:rgba(10,15,30,0.92);border:1px solid rgba(255,255,255,0.18);border-radius:12px;padding:8px 14px;font-size:13px;color:#fff;font-weight:600;white-space:nowrap;backdrop-filter:blur(16px);box-shadow:0 8px 32px rgba(0,0,0,0.5);}
+#tooltip.show{opacity:1;}
+#tooltip-sub{font-size:11px;font-weight:400;color:rgba(255,255,255,0.55);margin-top:2px;}
+
+/* SIDE PANEL */
+#panel{position:fixed;right:0;top:0;bottom:0;width:320px;background:rgba(8,12,28,0.96);border-left:1px solid rgba(255,255,255,0.1);backdrop-filter:blur(24px);z-index:30;transform:translateX(100%);transition:transform 320ms cubic-bezier(0,0,0,1);display:flex;flex-direction:column;}
+#panel.open{transform:translateX(0);}
+.pan-hdr{padding:20px 20px 14px;border-bottom:1px solid rgba(255,255,255,0.08);}
+.pan-title{font-size:20px;font-weight:800;letter-spacing:-.02em;color:#fff;margin-bottom:3px;}
+.pan-sub{font-size:12px;color:rgba(255,255,255,0.45);}
+.pan-body{flex:1;overflow-y:auto;padding:16px 20px;}
+.pan-close{position:absolute;top:16px;right:16px;background:rgba(255,255,255,0.08);border:none;border-radius:50%;color:rgba(255,255,255,0.7);width:28px;height:28px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;transition:all 120ms ease;}
+.pan-close:hover{background:rgba(255,255,255,0.15);color:#fff;}
+.prog-bar{height:5px;background:rgba(255,255,255,0.07);border-radius:9999px;margin-bottom:16px;overflow:hidden;}
+.prog-fill{height:100%;border-radius:9999px;transition:width 600ms cubic-bezier(.34,1.56,.64,1);}
+.topic-tag{display:inline-flex;align-items:center;padding:5px 12px;border-radius:9999px;font-size:12px;font-weight:600;margin:3px;cursor:default;transition:transform 120ms cubic-bezier(.34,1.56,.64,1);}
+.topic-tag:hover{transform:scale(1.08);}
+.pan-stat-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;}
+.pan-stat{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.09);border-radius:12px;padding:12px;text-align:center;}
+.ps-val{font-size:22px;font-weight:800;letter-spacing:-.02em;color:#fff;}
+.ps-lbl{font-size:10px;color:rgba(255,255,255,0.4);margin-top:2px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;}
+.btn-study{width:100%;padding:11px;border-radius:9999px;border:none;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;margin-top:8px;transition:all 120ms cubic-bezier(.34,1.56,.64,1);}
+.btn-study:hover{transform:translateY(-2px) scale(1.02);}
+.btn-study:active{transform:scale(0.96);}
+.sect-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,0.35);margin-bottom:8px;margin-top:16px;}
+
+/* CONTEXT MENU */
+#ctx{position:fixed;background:rgba(12,18,38,0.97);border:1px solid rgba(255,255,255,0.18);border-radius:12px;padding:5px;min-width:148px;box-shadow:0 12px 40px rgba(0,0,0,0.6);z-index:40;opacity:0;pointer-events:none;transform:scale(0.88) translateY(-4px);transition:all 130ms cubic-bezier(.34,1.56,.64,1);}
+#ctx.open{opacity:1;pointer-events:all;transform:scale(1) translateY(0);}
+.ctx-r{display:flex;align-items:center;gap:8px;padding:6px 9px;border-radius:7px;cursor:pointer;font-size:12px;color:#fff;transition:background 100ms ease;}
+.ctx-r:hover{background:rgba(124,58,237,0.18);}
+.ctx-sep{height:1px;background:rgba(255,255,255,0.08);margin:3px 0;}
+
+/* HELP HUD */
+#help-hud{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);display:flex;gap:14px;background:rgba(0,0,0,0.6);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.1);border-radius:9999px;padding:8px 18px;font-size:11px;color:rgba(255,255,255,0.5);pointer-events:none;}
+.help-k kbd{background:rgba(255,255,255,0.12);border-radius:4px;padding:1px 5px;font-family:inherit;font-size:10px;color:rgba(255,255,255,0.7);}
+
+/* LOADING */
+#loading{position:fixed;inset:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:100;transition:opacity 600ms ease;}
+#loading.out{opacity:0;pointer-events:none;}
+.load-icon{font-size:40px;animation:spin 2s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.load-txt{color:rgba(255,255,255,0.6);font-size:14px;letter-spacing:.05em;}
+.load-bar{width:180px;height:2px;background:rgba(255,255,255,0.1);border-radius:1px;overflow:hidden;}
+.load-fill{height:100%;background:linear-gradient(90deg,#7c3aed,#06b6d4);border-radius:1px;animation:loadIn 1.4s ease forwards;}
+@keyframes loadIn{from{width:0}to{width:100%}}
+</style>
+</head>
+<body>
+
+<!-- HUD -->
+<div id="hud">
+  <a href="index.html" class="hud-logo"><div class="hud-logo-icon">✦</div>Study Galaxy</a>
+  <div class="hud-sp"></div>
+  <button class="hud-btn" onclick="resetCamera()">⟳ Reset View</button>
+  <button class="hud-btn" onclick="toggleAutoRotate()">⏸ Auto-Rotate</button>
+  <a href="index.html" class="hud-btn">← StudyOS</a>
+</div>
+
+<!-- TOOLTIP -->
+<div id="tooltip"><span id="tooltip-name"></span><div id="tooltip-sub"></div></div>
+
+<!-- SIDE PANEL -->
+<div id="panel">
+  <button class="pan-close" onclick="closePanel()">✕</button>
+  <div class="pan-hdr">
+    <div class="pan-title" id="pan-title">Subject</div>
+    <div class="pan-sub" id="pan-sub">0 topics</div>
+  </div>
+  <div class="pan-body">
+    <div class="sect-lbl">Progress</div>
+    <div class="prog-bar"><div class="prog-fill" id="pan-prog" style="width:0%"></div></div>
+    <div class="pan-stat-row">
+      <div class="pan-stat"><div class="ps-val" id="pan-pct">0%</div><div class="ps-lbl">Mastered</div></div>
+      <div class="pan-stat"><div class="ps-val" id="pan-topics">0</div><div class="ps-lbl">Topics</div></div>
+    </div>
+    <div class="sect-lbl">Topics</div>
+    <div id="pan-tags"></div>
+    <button class="btn-study" id="pan-btn" onclick="studyNow()">Start Studying →</button>
+  </div>
+</div>
+
+<!-- CONTEXT MENU -->
+<div id="ctx"></div>
+
+<!-- HELP -->
+<div id="help-hud">
+  <span class="help-k"><kbd>Drag</kbd> Rotate</span>
+  <span class="help-k"><kbd>Scroll</kbd> Zoom</span>
+  <span class="help-k"><kbd>Click</kbd> Select</span>
+  <span class="help-k"><kbd>Right-click</kbd> Menu</span>
+  <span class="help-k"><kbd>R</kbd> Reset</span>
+  <span class="help-k"><kbd>Esc</kbd> Close</span>
+</div>
+
+<!-- LOADING -->
+<div id="loading">
+  <div class="load-icon">🌌</div>
+  <div class="load-txt">INITIALIZING STUDY GALAXY</div>
+  <div class="load-bar"><div class="load-fill"></div></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// =====================================================================
+// SUBJECTS DATA — ChatGPT's idea: galaxy IS the study system
+// =====================================================================
+const SUBJECTS = [
+  {id:'math',  name:'Mathematics', sym:'∑', hex:'#8052ff', col:0x8052ff, orbit:11, spd:.009,  tilt:8,   ph:0,    topics:['Calculus','Algebra','Trigonometry','Statistics','Coordinate Geometry','Vectors'], prog:65},
+  {id:'phys',  name:'Physics',     sym:'φ', hex:'#00d4ff', col:0x00d4ff, orbit:16, spd:.006,  tilt:30,  ph:1.05, topics:['Mechanics','Thermodynamics','Electromagnetism','Optics','Modern Physics','Waves'], prog:42},
+  {id:'chem',  name:'Chemistry',   sym:'⚗', hex:'#ffb829', col:0xffb829, orbit:13, spd:.008,  tilt:-20, ph:2.1,  topics:['Organic','Inorganic','Physical Chemistry','Analytical','Electrochemistry','Chemical Bonding'], prog:58},
+  {id:'bio',   name:'Biology',     sym:'⬡', hex:'#15e8a0', col:0x15e8a0, orbit:20, spd:.005,  tilt:45,  ph:3.14, topics:['Cell Biology','Genetics','Ecology','Evolution','Human Physiology','Biotechnology'], prog:30},
+  {id:'eng',   name:'English',     sym:'A', hex:'#c8c8ff', col:0xc8c8ff, orbit:17, spd:.007,  tilt:-50, ph:4.2,  topics:['Grammar','Literature','Writing','Comprehension','Vocabulary','Critical Thinking'], prog:80},
+  {id:'hist',  name:'History',     sym:'⚔', hex:'#ff6b8a', col:0xff6b8a, orbit:22, spd:.004,  tilt:60,  ph:5.25, topics:['Ancient Civilizations','Medieval','Modern History','World Wars','Independence','Contemporary'], prog:45},
+];
+
+// Connections — my idea: only connect conceptually related subjects
+const CONNECTIONS = [[0,1],[1,2],[0,2],[2,3],[0,3],[1,4],[3,5],[4,5]];
+
+// =====================================================================
+// THREE.JS SETUP
+// =====================================================================
+const W=window.innerWidth, H=window.innerHeight;
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x000008, 0.008);
+
+const camera = new THREE.PerspectiveCamera(60, W/H, 0.1, 1000);
+camera.position.set(0, 8, 38);
+camera.lookAt(0,0,0);
+
+const renderer = new THREE.WebGLRenderer({antialias:true, alpha:false});
+renderer.setSize(W,H);
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+document.body.appendChild(renderer.domElement);
+
+// Pivot group — entire scene rotates as unit (ChatGPT's #1 Three.js tip)
+const pivot = new THREE.Group();
+scene.add(pivot);
+
+// =====================================================================
+// LIGHTING — my design: subject-colored fill + dramatic rim
+// =====================================================================
+scene.add(new THREE.AmbientLight(0x111133, 2));
+const corePt = new THREE.PointLight(0xffffff, 12, 45);
+scene.add(corePt); // core pulse
+const rim1 = new THREE.DirectionalLight(0x7c3aed, 2);
+rim1.position.set(-20, 10, -10); scene.add(rim1);
+const rim2 = new THREE.DirectionalLight(0x06b6d4, 1.5);
+rim2.position.set(20, -5, 15); scene.add(rim2);
+
+// =====================================================================
+// BACKGROUND — My idea: 3 layers of particles for depth
+// =====================================================================
+function makePtCloud(count, rMin, rMax, color, size){
+  const geo = new THREE.BufferGeometry();
+  const pos = new Float32Array(count*3);
+  for(let i=0;i<count;i++){
+    const r = rMin + Math.random()*(rMax-rMin);
+    const theta = Math.random()*Math.PI*2;
+    const phi = Math.acos(2*Math.random()-1);
+    pos[i*3]   = r*Math.sin(phi)*Math.cos(theta);
+    pos[i*3+1] = r*Math.sin(phi)*Math.sin(theta);
+    pos[i*3+2] = r*Math.cos(phi);
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  const mat = new THREE.PointsMaterial({color, size, sizeAttenuation:true, transparent:true, opacity:0.7});
+  return new THREE.Points(geo,mat);
+}
+// Distant white stars
+scene.add(makePtCloud(6000, 120, 400, 0xffffff, 0.18));
+// Mid nebula — violet cloud
+scene.add(makePtCloud(1800, 30, 90, 0x5533cc, 0.35));
+// Near dust — cyan wisps
+scene.add(makePtCloud(900, 20, 60, 0x0066aa, 0.25));
+
+// =====================================================================
+// ICOSAHEDRON CORE
+// =====================================================================
+const coreGeo = new THREE.IcosahedronGeometry(2.4, 5);
+const coreMat = new THREE.MeshStandardMaterial({
+  color:0x6622bb, emissive:0x4411aa, emissiveIntensity:1.2,
+  metalness:0.8, roughness:0.1, transparent:true, opacity:0.92
+});
+const core = new THREE.Mesh(coreGeo, coreMat);
+pivot.add(core);
+
+// Wire overlay
+const wireGeo = new THREE.IcosahedronGeometry(2.55, 1);
+const wireMat = new THREE.MeshBasicMaterial({color:0x9966ff, wireframe:true, transparent:true, opacity:0.18});
+const wireCore = new THREE.Mesh(wireGeo, wireMat);
+pivot.add(wireCore);
+
+// Halo rings around core
+[3.2, 4.2, 5.4].forEach((r,i)=>{
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(r, 0.015+i*0.01, 6, 80),
+    new THREE.MeshBasicMaterial({color:[0x7c3aed,0x06b6d4,0xffffff][i], transparent:true, opacity:[0.3,0.2,0.1][i]})
+  );
+  ring.rotation.x = [0.3, 1.1, 0.7][i];
+  ring.rotation.y = [0, 0.5, 1.0][i];
+  ring.userData.rotSpd = [0.004, -0.006, 0.003][i];
+  pivot.add(ring);
+});
+
+// =====================================================================
+// ORBIT RINGS
+// =====================================================================
+SUBJECTS.forEach(sub=>{
+  const tilt = sub.tilt * Math.PI/180;
+  const ringGeo = new THREE.TorusGeometry(sub.orbit, 0.014, 6, 120);
+  const ringMat = new THREE.MeshBasicMaterial({color:sub.col, transparent:true, opacity:0.12});
+  const ring = new THREE.Mesh(ringGeo, ringMat);
+  ring.rotation.x = tilt;
+  ring.rotation.z = sub.ph * 0.3;
+  pivot.add(ring);
+});
+
+// =====================================================================
+// SUBJECT SPHERES
+// =====================================================================
+const subjectMeshes = [];
+const _v3 = new THREE.Vector3();
+
+SUBJECTS.forEach((sub,i)=>{
+  const geo = new THREE.IcosahedronGeometry(0.72, 4);
+  const mat = new THREE.MeshStandardMaterial({
+    color: sub.col, emissive: sub.col, emissiveIntensity: 0.9,
+    metalness: 0.5, roughness: 0.25
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.userData = {sub, idx:i, baseEmissive:0.9, isHovered:false, angle:sub.ph};
+
+  // Halo glow sphere
+  const haloGeo = new THREE.SphereGeometry(1.1, 16, 16);
+  const haloMat = new THREE.MeshBasicMaterial({color:sub.col, transparent:true, opacity:0.08, side:THREE.BackSide});
+  const halo = new THREE.Mesh(haloGeo, haloMat);
+  mesh.add(halo);
+
+  // Sub-topic particle cloud (my idea: topic count = particle density)
+  const tGeo = new THREE.BufferGeometry();
+  const tPos = new Float32Array(sub.topics.length * 12);
+  for(let j=0;j<sub.topics.length*4;j++){
+    const r=1.4+Math.random()*0.9;
+    const th=Math.random()*Math.PI*2;
+    const ph2=Math.acos(2*Math.random()-1);
+    tPos[j*3]=r*Math.sin(ph2)*Math.cos(th);
+    tPos[j*3+1]=r*Math.sin(ph2)*Math.sin(th);
+    tPos[j*3+2]=r*Math.cos(ph2);
+  }
+  tGeo.setAttribute('position',new THREE.BufferAttribute(tPos,3));
+  mesh.add(new THREE.Points(tGeo, new THREE.PointsMaterial({color:sub.col, size:0.07, sizeAttenuation:true, transparent:true, opacity:0.6})));
+
+  // Point light at node — makes its orbit lit
+  const light = new THREE.PointLight(sub.col, 1.2, 8);
+  mesh.add(light);
+
+  pivot.add(mesh);
+  subjectMeshes.push(mesh);
+});
+
+// =====================================================================
+// CONNECTIONS — ChatGPT's key tip: CatmullRom curves, not straight lines
+// =====================================================================
+const connLines = [];
+CONNECTIONS.forEach(([a,b])=>{
+  const curve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()
+  ]);
+  const geo = new THREE.TubeGeometry(curve, 20, 0.012, 5, false);
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0x7c3aed, transparent:true, opacity:0.22
+  });
+  const tube = new THREE.Mesh(geo, mat);
+  pivot.add(tube);
+  connLines.push({tube, geo, mat, a, b, curve});
+});
+
+// =====================================================================
+// CAMERA SPRING — ChatGPT's key tip: lerp(), never teleport
+// =====================================================================
+let camTarget = {x:0, y:8, z:38}; // world pos
+let camLookAt = new THREE.Vector3(0,0,0);
+let camLookTarget = new THREE.Vector3(0,0,0);
+let autoRotate = true;
+let autoRotSpd = 0.0015;
+
+function flyToNode(idx){
+  const m = subjectMeshes[idx];
+  m.getWorldPosition(_v3);
+  // Offset: approach from slightly above and outside
+  const dir = _v3.clone().normalize();
+  const offset = dir.multiplyScalar(6);
+  camTarget = {x:_v3.x+offset.x, y:_v3.y+2, z:_v3.z+offset.z};
+  camLookTarget.copy(m.getWorldPosition(new THREE.Vector3()));
+  autoRotate = false;
+}
+
+function resetCamera(){
+  camTarget = {x:0, y:8, z:38};
+  camLookTarget.set(0,0,0);
+  autoRotate = true;
+}
+
+// =====================================================================
+// RAYCASTING — Fixed: proper NDC coords, continuous in animate loop
+// =====================================================================
+const raycaster = new THREE.Raycaster();
+raycaster.params.Points.threshold = 0.1;
+const mouse = new THREE.Vector2(-9999, -9999);
+let hovered = null;
+let selected = null;
+
+window.addEventListener('mousemove', e=>{
+  mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  // Update tooltip position
+  document.getElementById('tooltip').style.left = e.clientX+'px';
+  document.getElementById('tooltip').style.top = e.clientY+'px';
+});
+
+// =====================================================================
+// MOUSE DRAG — rotate pivot (ChatGPT's "whole scene rotates" principle)
+// =====================================================================
+let isDragging = false, lastMX=0, lastMY=0;
+let pivTargetY=0, pivTargetX=0;
+let pivRotY=0, pivRotX=0;
+let pinchDist=0;
+let zoom=38;
+
+renderer.domElement.addEventListener('mousedown', e=>{if(e.button===0){isDragging=true;lastMX=e.clientX;lastMY=e.clientY;}});
+renderer.domElement.addEventListener('mouseup', ()=>{isDragging=false;});
+renderer.domElement.addEventListener('mouseleave', ()=>{isDragging=false;});
+renderer.domElement.addEventListener('mousemove', e=>{
+  if(!isDragging)return;
+  pivTargetY += (e.clientX-lastMX)*0.006;
+  pivTargetX += (e.clientY-lastMY)*0.004;
+  pivTargetX = Math.max(-Math.PI/3, Math.min(Math.PI/3, pivTargetX));
+  lastMX=e.clientX;lastMY=e.clientY;
+  if(isDragging)autoRotate=false;
+});
+renderer.domElement.addEventListener('wheel', e=>{
+  zoom += e.deltaY * 0.025;
+  zoom = Math.max(10, Math.min(60, zoom));
+  camTarget.z = zoom;
+  e.preventDefault();
+}, {passive:false});
+
+// Touch
+renderer.domElement.addEventListener('touchstart', e=>{
+  if(e.touches.length===1){isDragging=true;lastMX=e.touches[0].clientX;lastMY=e.touches[0].clientY;}
+  if(e.touches.length===2){pinchDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);}
+},{passive:true});
+renderer.domElement.addEventListener('touchmove', e=>{
+  if(e.touches.length===1&&isDragging){pivTargetY+=(e.touches[0].clientX-lastMX)*0.007;pivTargetX+=(e.touches[0].clientY-lastMY)*0.005;lastMX=e.touches[0].clientX;lastMY=e.touches[0].clientY;autoRotate=false;}
+  if(e.touches.length===2){const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);zoom+=(pinchDist-d)*0.05;zoom=Math.max(10,Math.min(60,zoom));camTarget.z=zoom;pinchDist=d;}
+},{passive:true});
+renderer.domElement.addEventListener('touchend',()=>{isDragging=false;},{passive:true});
+
+// =====================================================================
+// CLICK — fly camera to node
+// =====================================================================
+renderer.domElement.addEventListener('click', e=>{
+  if(isDragging)return; // was a drag, not a click
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(subjectMeshes, false);
+  if(hits.length>0){
+    const mesh = hits[0].object;
+    selected = mesh.userData.idx;
+    flyToNode(selected);
+    openSubjectPanel(selected);
+  } else {
+    // Click on void: close panel
+    closePanel();
+  }
+});
+
+// RIGHT-CLICK CONTEXT MENU
+renderer.domElement.addEventListener('contextmenu', e=>{
+  e.preventDefault();
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(subjectMeshes, false);
+  if(hits.length>0){
+    const s = hits[0].object.userData.sub;
+    const idx = hits[0].object.userData.idx;
+    showCtx(e.clientX, e.clientY, [
+      {label:`📖 Open ${s.name}`, fn:()=>openSubjectPanel(idx)},
+      {label:`🚀 Fly To`, fn:()=>flyToNode(idx)},
+      {sep:1},
+      {label:`📊 ${s.prog}% mastered`, fn:()=>{}},
+    ]);
+  } else {
+    showCtx(e.clientX, e.clientY, [
+      {label:'⟳ Reset View', fn:resetCamera},
+      {label:'⏸ Toggle Rotation', fn:toggleAutoRotate},
+      {sep:1},
+      {label:'← Back to StudyOS', fn:()=>location.href='index.html'},
+    ]);
+  }
+});
+
+// =====================================================================
+// PANEL
+// =====================================================================
+function openSubjectPanel(idx){
+  const s = SUBJECTS[idx];
+  document.getElementById('pan-title').textContent = s.sym+' '+s.name;
+  document.getElementById('pan-sub').textContent = s.topics.length+' topics';
+  document.getElementById('pan-prog').style.width = s.prog+'%';
+  document.getElementById('pan-prog').style.background = s.hex;
+  document.getElementById('pan-pct').textContent = s.prog+'%';
+  document.getElementById('pan-topics').textContent = s.topics.length;
+  document.getElementById('pan-tags').innerHTML = s.topics.map(t=>
+    `<span class="topic-tag" style="background:${s.hex}22;border:1px solid ${s.hex}44;color:${s.hex}">${t}</span>`
+  ).join('');
+  const btn = document.getElementById('pan-btn');
+  btn.style.background = s.hex;
+  btn.style.color = '#fff';
+  btn.dataset.idx = idx;
+  document.getElementById('panel').classList.add('open');
+}
+function closePanel(){
+  document.getElementById('panel').classList.remove('open');
+  selected = null;
+  resetCamera();
+}
+function studyNow(){
+  const idx = parseInt(document.getElementById('pan-btn').dataset.idx);
+  const s = SUBJECTS[idx];
+  // My idea: open Khan Academy search for the subject
+  window.open(`https://khanacademy.org/search?page_search_query=${encodeURIComponent(s.name)}&search_again=true`, '_blank');
+}
+
+function toggleAutoRotate(){autoRotate=!autoRotate;}
+
+// =====================================================================
+// CONTEXT MENU
+// =====================================================================
+function showCtx(x,y,items){
+  const m=document.getElementById('ctx');
+  m.innerHTML=items.map(it=>it.sep?'<div class="ctx-sep"></div>':`<div class="ctx-r" onclick="this.closest('#ctx').classList.remove('open');(${it.fn.toString()})()">${it.label}</div>`).join('');
+  m.style.left=Math.min(x,innerWidth-165)+'px';m.style.top=Math.min(y,innerHeight-160)+'px';
+  m.classList.add('open');setTimeout(()=>document.addEventListener('click',()=>m.classList.remove('open'),{once:true}),40);
+}
+
+// =====================================================================
+// ANIMATE — main loop
+// =====================================================================
+const clock = new THREE.Clock();
+let corePulse = 0;
+
+function animate(){
+  requestAnimationFrame(animate);
+  const t = clock.getElapsedTime();
+  const dt = clock.getDelta ? 0.016 : 0.016; // ~60fps
+
+  // Core heartbeat pulse — my idea: core "breathes"
+  corePulse = Math.sin(t * 1.8) * 0.5 + 0.5;
+  core.rotation.y = t * 0.12;
+  wireCore.rotation.y = -t * 0.08;
+  wireCore.rotation.x = t * 0.05;
+  coreMat.emissiveIntensity = 0.8 + corePulse * 0.6;
+  corePt.intensity = 6 + corePulse * 8;
+
+  // Halo rings spin
+  pivot.children.forEach(c=>{if(c.userData.rotSpd)c.rotation.z+=c.userData.rotSpd;});
+
+  // Auto-rotate pivot
+  if(autoRotate) pivTargetY += autoRotSpd;
+
+  // Smooth pivot rotation (spring lerp)
+  pivRotY += (pivTargetY - pivRotY) * 0.06;
+  pivRotX += (pivTargetX - pivRotX) * 0.06;
+  pivot.rotation.y = pivRotY;
+  pivot.rotation.x = pivRotX;
+
+  // Camera spring — ChatGPT's rule: NEVER teleport
+  camera.position.x += (camTarget.x - camera.position.x) * 0.05;
+  camera.position.y += (camTarget.y - camera.position.y) * 0.05;
+  camera.position.z += (camTarget.z - camera.position.z) * 0.05;
+  camLookAt.lerp(camLookTarget, 0.05);
+  camera.lookAt(camLookAt);
+
+  // Orbit subject spheres
+  subjectMeshes.forEach((mesh, i)=>{
+    const sub = mesh.userData.sub;
+    mesh.userData.angle += sub.spd;
+    const ang = mesh.userData.angle;
+    const tilt = sub.tilt * Math.PI / 180;
+    mesh.position.x = Math.cos(ang) * sub.orbit;
+    mesh.position.y = Math.sin(ang) * sub.orbit * Math.sin(tilt);
+    mesh.position.z = Math.sin(ang) * sub.orbit * Math.cos(tilt);
+
+    // Nodes self-rotate
+    mesh.rotation.y = t * 0.4 * (i%2===0?1:-1);
+
+    // Pulse based on progress — my idea: brighter = more mastered
+    const energyPulse = 0.7 + Math.sin(t * 2 + i * 1.1) * 0.3 * (sub.prog/100);
+    mesh.material.emissiveIntensity = mesh.userData.isHovered ? 2.5 : energyPulse;
+    mesh.children[0].material.opacity = mesh.userData.isHovered ? 0.18 : 0.07; // halo
+  });
+
+  // Raycasting — properly done EVERY frame
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(subjectMeshes, false);
+  const tooltip = document.getElementById('tooltip');
+
+  if(hits.length > 0 && !isDragging){
+    const mesh = hits[0].object;
+    const sub = mesh.userData.sub;
+    if(hovered !== mesh){
+      if(hovered) hovered.userData.isHovered = false;
+      hovered = mesh;
+      hovered.userData.isHovered = true;
+      document.body.style.cursor = 'pointer';
+    }
+    document.getElementById('tooltip-name').textContent = sub.sym + ' ' + sub.name;
+    document.getElementById('tooltip-sub').textContent = sub.prog + '% mastered · ' + sub.topics.length + ' topics';
+    tooltip.classList.add('show');
+    // Scale up with spring — ChatGPT's interaction density
+    mesh.scale.lerp(new THREE.Vector3(1.18,1.18,1.18), 0.12);
+  } else {
+    if(hovered){ hovered.userData.isHovered = false; hovered = null; document.body.style.cursor='default'; }
+    tooltip.classList.remove('show');
+    subjectMeshes.forEach(m=>m.scale.lerp(new THREE.Vector3(1,1,1), 0.1));
+  }
+
+  // Update CatmullRom connection tubes — nodes are moving
+  connLines.forEach(({tube, geo, mat, a, b, curve})=>{
+    const pa = subjectMeshes[a].position.clone();
+    const pb = subjectMeshes[b].position.clone();
+    const mid = pa.clone().add(pb).multiplyScalar(0.5);
+    // Gentle arc — midpoint pushed toward core
+    mid.multiplyScalar(0.4);
+    curve.points[0].copy(pa);
+    curve.points[1].copy(mid);
+    curve.points[2].copy(pb);
+    // Rebuild tube
+    const newGeo = new THREE.TubeGeometry(curve, 20, 0.013, 5, false);
+    tube.geometry.dispose();
+    tube.geometry = newGeo;
+    // Pulse opacity
+    const opacity = 0.12 + corePulse * 0.12;
+    mat.opacity = opacity;
+  });
+
+  renderer.render(scene, camera);
+}
+animate();
+
+// =====================================================================
+// KEYBOARD
+// =====================================================================
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape')closePanel();
+  if(e.key==='r'||e.key==='R')resetCamera();
+  if(e.key==='a'||e.key==='A')toggleAutoRotate();
+});
+
+// =====================================================================
+// RESIZE
+// =====================================================================
+window.addEventListener('resize', ()=>{
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+
+// =====================================================================
+// HIDE LOADING SCREEN
+// =====================================================================
+setTimeout(()=>{
+  document.getElementById('loading').classList.add('out');
+  setTimeout(()=>document.getElementById('loading').remove(), 650);
+}, 1600);
+</script>
+</body>
+</html>
