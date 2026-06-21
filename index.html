@@ -552,13 +552,13 @@ body{
   <div class="sb-foot">
     <div class="sb-streak">
       <span style="font-size:16px">🔥</span>
-      <span style="font-size:11px;font-weight:600;color:var(--amber)" id="streak-lbl">14 day streak</span>
+      <span style="font-size:11px;font-weight:600;color:var(--amber)" id="streak-lbl">0 day streak</span>
     </div>
-    <div class="sb-av">
-      <div class="av-ring">A</div>
+    <div class="sb-av" onclick="go('settings',null)">
+      <div class="av-ring" id="av-initial">?</div>
       <div>
-        <div style="font-size:12px;font-weight:600">Arjun</div>
-        <div style="font-size:10px;color:var(--t3)">JEE 2026</div>
+        <div style="font-size:12px;font-weight:600" class="av-name" id="av-name-disp">—</div>
+        <div style="font-size:10px;color:var(--t3)" id="av-exam-lbl">StudyOS</div>
       </div>
     </div>
   </div>
@@ -581,7 +581,7 @@ body{
     </div>
     <div class="hero-stats">
       <div class="hstat"><div class="hstat-v">6.5h</div><div class="hstat-l">TODAY</div></div>
-      <div class="hstat"><div class="hstat-v" id="hs-streak">14</div><div class="hstat-l">STREAK</div></div>
+      <div class="hstat"><div class="hstat-v" id="hs-streak">0</div><div class="hstat-l">STREAK</div></div>
       <div class="hstat"><div class="hstat-v" id="hs-tasks">3/8</div><div class="hstat-l">TASKS</div></div>
       <div class="hstat"><div class="hstat-v">82%</div><div class="hstat-l">WEEKLY</div></div>
     </div>
@@ -773,7 +773,7 @@ body{
     <div class="set-sec">
       <div class="set-title">About</div>
       <div class="set-row"><div style="font-size:13px;font-weight:500">Version</div><div style="font-size:12px;color:var(--t3)">StudyOS v2.4.0</div></div>
-      <div class="set-row"><div><div style="font-size:13px;font-weight:500">Your Name</div><div style="font-size:11px;color:var(--t3)" id="set-name-disp">${userName}</div></div><button class="btn btn-s btn-sm" onclick="editName()">Edit</button></div>
+      <div class="set-row"><div><div style="font-size:13px;font-weight:500">Your Name</div><div style="font-size:11px;color:var(--t3)" id="set-name-disp"></div></div><button class="btn btn-s btn-sm" onclick="editName()">Edit</button></div>
       <div class="set-row"><div><div style="font-size:13px;font-weight:500">Export data</div><div style="font-size:11px;color:var(--t3)">Download all study data as JSON</div></div><button class="btn btn-s btn-sm" onclick="exportData()">Export</button></div>
       <div class="set-row"><div><div style="font-size:13px;font-weight:500">Reset data</div><div style="font-size:11px;color:var(--t3)">Clear all local data and start fresh</div></div><button class="btn btn-s btn-sm" onclick="resetData()" style="border-color:rgba(255,107,138,.3);color:#ff6b8a">Reset</button></div>
     </div>
@@ -788,7 +788,7 @@ body{
   <div class="st-sep"></div>
   <div>STUDYOS v2.4.0</div>
   <div class="st-sep"></div>
-  <div>🔥 <span id="st-stk">14</span> DAY STREAK</div>
+  <div>🔥 <span id="st-stk">0</span> DAY STREAK</div>
   <div class="st-sep"></div>
   <div>SYNC: ACTIVE</div>
   <div class="st-sp"></div>
@@ -835,50 +835,42 @@ const DB_KEY='studyos_v1';
 function dbLoad(){try{return JSON.parse(localStorage.getItem(DB_KEY)||'null')}catch{return null}}
 function dbSave(){
   try{localStorage.setItem(DB_KEY,JSON.stringify({
-    name:userName,streak,
+    name:userName,streak,examDate,
     subs:SUBS.map(s=>({id:s.id,p:s.p})),
     tasks:TASKS,
-    goals:GOALS.map(g=>({t:g.t,p:g.p})),
-    subProgress:Object.fromEntries(SUBS.map(s=>[s.id,s.p])), // for galaxy.html
+    goals:GOALS.map(g=>({t:g.t,p:g.p,d:g.d,c:g.c,dt:g.dt})),
+    subProgress:Object.fromEntries(SUBS.map(s=>[s.id,s.p])),
     lastStudy:new Date().toDateString()
   }));}catch(e){}
 }
 const _db=dbLoad();
-const userName=_db?.name||'Student';
+const isFirstRun=!_db;
+let userName=_db?.name||'';
+let examDate=_db?.examDate||'';
 
-// ─── DATA ───────────────────────────────────────────────────
-const _DEFAULT_SUBS=[
-  {id:'m',nm:'Mathematics',sym:'∑',c:'#8052ff',bg:'rgba(128,82,255,.15)',p:65},
-  {id:'p',nm:'Physics',    sym:'φ',c:'#00d4ff',bg:'rgba(0,212,255,.15)', p:48},
-  {id:'c',nm:'Chemistry',  sym:'⚗',c:'#ffb829',bg:'rgba(255,184,41,.15)',p:62},
-  {id:'b',nm:'Biology',    sym:'⬡',c:'#15e8a0',bg:'rgba(21,232,160,.15)',p:35},
+// ─── ALL POSSIBLE SUBJECTS (catalogue) ──────────────────────
+const SUB_CATALOGUE=[
+  {id:'m', nm:'Mathematics', sym:'∑', c:'#8052ff',bg:'rgba(128,82,255,.15)'},
+  {id:'p', nm:'Physics',     sym:'φ', c:'#00d4ff',bg:'rgba(0,212,255,.15)'},
+  {id:'c', nm:'Chemistry',   sym:'⚗', c:'#ffb829',bg:'rgba(255,184,41,.15)'},
+  {id:'b', nm:'Biology',     sym:'⬡', c:'#15e8a0',bg:'rgba(21,232,160,.15)'},
+  {id:'e', nm:'English',     sym:'A', c:'#b8b8ff',bg:'rgba(184,184,255,.15)'},
+  {id:'h', nm:'History',     sym:'⚔', c:'#ff6b8a',bg:'rgba(255,107,138,.15)'},
+  {id:'g', nm:'Geography',   sym:'⊕', c:'#15e8a0',bg:'rgba(21,232,160,.15)'},
+  {id:'cs',nm:'Computer Sci',sym:'⌨', c:'#00d4ff',bg:'rgba(0,212,255,.15)'},
+  {id:'ec',nm:'Economics',   sym:'$', c:'#ffb829',bg:'rgba(255,184,41,.15)'},
+  {id:'s', nm:'Science',     sym:'⚛', c:'#8052ff',bg:'rgba(128,82,255,.15)'},
 ];
-const SUBS=_DEFAULT_SUBS.map(s=>{
-  const sv=(_db?.subs||[]).find(x=>x.id===s.id);
-  return sv?{...s,p:sv.p}:{...s};
-});
 
-const _DEFAULT_TASKS=[
-  {id:1,tx:'HC Verma Ch.23 – Electrostatics',  sub:'Physics',    done:false,pri:'high',due:'Today'},
-  {id:2,tx:'Mock Test Analysis – April',        sub:'General',    done:true, pri:'med', due:'Done'},
-  {id:3,tx:'Inorganic Chemistry – P-Block',     sub:'Chemistry',  done:false,pri:'med', due:'Today'},
-  {id:4,tx:'Differentiation Practice Set',      sub:'Mathematics',done:false,pri:'high',due:'Today'},
-  {id:5,tx:'Organic Reactions Revision',        sub:'Chemistry',  done:true, pri:'low', due:'Done'},
-  {id:6,tx:'Ray Optics — Formula Sheet',        sub:'Physics',    done:false,pri:'low', due:'Tomorrow'},
-  {id:7,tx:'Coordinate Geometry PYQs',          sub:'Mathematics',done:false,pri:'high',due:'Today'},
-  {id:8,tx:'Read NCERT Bio Ch.12',              sub:'Biology',    done:false,pri:'low', due:'Tomorrow'},
-];
-const TASKS=(_db?.tasks&&_db.tasks.length)?_db.tasks:[..._DEFAULT_TASKS];
+// ─── DATA — fully from localStorage, empty for new users ────
+const _savedSubs=_db?.subs||[];
+// If returning user: restore their subjects. If new user: empty until onboarding sets them.
+const SUBS=_savedSubs.length
+  ? _savedSubs.map(sv=>{const cat=SUB_CATALOGUE.find(x=>x.id===sv.id)||{};return{...cat,...sv};})
+  : [];
 
-const _DEFAULT_GOALS=[
-  {t:'Mathematics Mastery',  d:'All JEE Adv. chapters with PYQs', p:65,c:'#8052ff',dt:'Aug 2026'},
-  {t:'Physics Excellence',   d:'HC Verma + DC Pandey completion',  p:48,c:'#00d4ff',dt:'Sep 2026'},
-  {t:'Chemistry Command',    d:'JD Lee + Solomon Organic done',     p:62,c:'#ffb829',dt:'Jul 2026'},
-  {t:'Mock Score ≥ 200',     d:'Consistent 200+ in full mocks',     p:35,c:'#ff6b8a',dt:'Dec 2026'},
-];
-const GOALS=(_db?.goals&&_db.goals.length)?_DEFAULT_GOALS.map(g=>{
-  const sv=_db.goals.find(x=>x.t===g.t);return sv?{...g,p:sv.p}:{...g};
-}):[..._DEFAULT_GOALS];
+const TASKS=(_db?.tasks)?[..._db.tasks]:[];
+const GOALS=(_db?.goals)?[..._db.goals]:[];
 const CMDS=[
   {ic:'⌂',tx:'Dashboard',   sb:'Go home',           ac:()=>go('home',null)},
   {ic:'📅',tx:'Planner',    sb:'Weekly planner',    ac:()=>go('planner',null)},
@@ -910,13 +902,23 @@ const PLISTS=[
 // ─── STATE ──────────────────────────────────────────────────
 let tSec=25*60,tTot=25*60,tRun=false,tIv=null,tSess=1,tMod='focus';
 const MODES={focus:{lbl:'DEEP FOCUS',s:25*60,c:'#8052ff'},short:{lbl:'SHORT BREAK',s:5*60,c:'#15e8a0'},long:{lbl:'LONG BREAK',s:15*60,c:'#00d4ff'}};
-let streak=_db?.streak??parseInt(localStorage.getItem('streak')||'14');
+let streak=_db?.streak??0;
 let drawerOpen=false,cmdOpen=false,tflt='all',spOn=false;
 let cmdList=[...CMDS],cmdSel=0;
 
 // ─── INIT ────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded',()=>{
   tick();setInterval(tick,1000);
+
+  if(isFirstRun){
+    showOnboarding();
+    return; // don't render panels until onboarding done
+  }
+  initApp();
+  document.addEventListener('keydown',gKeys);
+});
+
+function initApp(){
   rSubs();rHT();rHmap();rWeek();rFTasks();rGoals();rDots();rBDots();rPlists();rDrawerWelcome();renderCmd('');
   stagger();
 
@@ -927,12 +929,22 @@ document.addEventListener('DOMContentLoaded',()=>{
   const h=new Date().getHours();
   document.getElementById('tod').textContent=h<12?'MORNING':h<17?'AFTERNOON':'EVENING';
 
-  const jee=new Date('2026-05-24');
-  const dl=Math.max(0,Math.ceil((jee-new Date())/(864e5)));
-  document.getElementById('days-left').textContent=dl;
+  // Countdown to exam date if set
+  const daysEl=document.getElementById('days-left');
+  if(examDate){
+    const dl=Math.max(0,Math.ceil((new Date(examDate)-new Date())/(864e5)));
+    if(daysEl)daysEl.textContent=dl;
+  }else{
+    if(daysEl)daysEl.textContent='—';
+  }
 
-  document.addEventListener('keydown',gKeys);
-});
+  // Sync name / avatar displays
+  const nd=document.getElementById('set-name-disp');if(nd)nd.textContent=userName;
+  const avName=document.getElementById('av-name-disp');if(avName)avName.textContent=userName||'—';
+  const avInit=document.getElementById('av-initial');if(avInit)avInit.textContent=(userName||'?')[0].toUpperCase();
+  const avExam=document.getElementById('av-exam-lbl');if(avExam)avExam.textContent=examDate?new Date(examDate).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}):'StudyOS';
+  document.getElementById('st-stk').textContent=streak;
+}
 
 function tick(){
   const n=new Date();
@@ -1213,15 +1225,180 @@ function showToast(msg,icon='ℹ'){
   setTimeout(()=>{el.classList.add('out');setTimeout(()=>el.remove(),280);},3000);
 }
 
-// ─── GLOBAL KEYS ────────────────────────────────────────────
+// ─── ONBOARDING ──────────────────────────────────────────────
+const OB_SUBJECTS=[ // shown during onboarding — user picks theirs
+  {id:'m', nm:'Mathematics', sym:'∑', c:'#8052ff',bg:'rgba(128,82,255,.15)'},
+  {id:'p', nm:'Physics',     sym:'φ', c:'#00d4ff',bg:'rgba(0,212,255,.15)'},
+  {id:'c', nm:'Chemistry',   sym:'⚗', c:'#ffb829',bg:'rgba(255,184,41,.15)'},
+  {id:'b', nm:'Biology',     sym:'⬡', c:'#15e8a0',bg:'rgba(21,232,160,.15)'},
+  {id:'e', nm:'English',     sym:'A', c:'#b8b8ff',bg:'rgba(184,184,255,.15)'},
+  {id:'h', nm:'History',     sym:'⚔', c:'#ff6b8a',bg:'rgba(255,107,138,.15)'},
+  {id:'g', nm:'Geography',   sym:'⊕', c:'#15e8a0',bg:'rgba(21,232,160,.15)'},
+  {id:'cs',nm:'Computer Sci',sym:'⌨', c:'#00d4ff',bg:'rgba(0,212,255,.15)'},
+  {id:'ec',nm:'Economics',   sym:'$', c:'#ffb829',bg:'rgba(255,184,41,.15)'},
+  {id:'s', nm:'Science',     sym:'⚛', c:'#8052ff',bg:'rgba(128,82,255,.15)'},
+];
+let _obStep=1, _obName='', _obSubs=[], _obExam='';
+
+function showOnboarding(){
+  const ov=document.createElement('div');
+  ov.id='ob-ov';
+  ov.style.cssText=`position:fixed;inset:0;z-index:500;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(ellipse 80% 60% at 50% 50%,rgba(128,82,255,.12),#05050f 65%);
+    backdrop-filter:blur(2px)`;
+  document.body.appendChild(ov);
+  renderObStep(ov);
+}
+
+function renderObStep(ov){
+  const steps=[
+    // Step 1 — Name
+    ()=>`
+    <div style="text-align:center;margin-bottom:32px">
+      <div style="width:52px;height:52px;border-radius:14px;background:linear-gradient(135deg,#8052ff,#00d4ff);
+        display:flex;align-items:center;justify-content:center;font-size:22px;margin:0 auto 16px;
+        box-shadow:0 0 30px rgba(128,82,255,.5)">✦</div>
+      <div style="font-size:26px;font-weight:800;letter-spacing:-.02em;margin-bottom:6px">Welcome to StudyOS</div>
+      <div style="font-size:13px;color:rgba(200,200,255,.55)">Your personal command center. All data stays on your device.</div>
+    </div>
+    <div style="margin-bottom:24px">
+      <label style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+        color:rgba(200,200,255,.4);display:block;margin-bottom:8px">What's your name?</label>
+      <input id="ob-name" type="text" value="${_obName}" maxlength="32" placeholder="Enter your name…"
+        style="width:100%;padding:13px 16px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);
+        border-radius:12px;color:#fff;font-size:15px;font-family:inherit;outline:none;
+        transition:border-color .2s ease"
+        oninput="_obName=this.value"
+        onkeydown="if(event.key==='Enter')obNext()"
+        onfocus="this.style.borderColor='rgba(128,82,255,.6)'"
+        onblur="this.style.borderColor='rgba(255,255,255,.12)'">
+    </div>
+    <div style="margin-bottom:32px">
+      <label style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+        color:rgba(200,200,255,.4);display:block;margin-bottom:8px">Exam / target date <span style="opacity:.4">(optional)</span></label>
+      <input id="ob-exam" type="date" value="${_obExam}"
+        style="width:100%;padding:12px 16px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);
+        border-radius:12px;color:rgba(255,255,255,.7);font-size:14px;font-family:inherit;outline:none;
+        transition:border-color .2s ease;color-scheme:dark"
+        oninput="_obExam=this.value"
+        onfocus="this.style.borderColor='rgba(128,82,255,.6)'"
+        onblur="this.style.borderColor='rgba(255,255,255,.12)'">
+    </div>
+    <button onclick="obNext()" style="width:100%;padding:14px;border-radius:12px;border:none;
+      background:linear-gradient(135deg,#8052ff,#00d4ff);color:#fff;font-size:15px;font-weight:700;
+      font-family:inherit;cursor:pointer;letter-spacing:.01em;
+      transition:all .22s cubic-bezier(.34,1.56,.64,1)"
+      onmouseover="this.style.transform='scale(1.02)';this.style.filter='brightness(1.1)'"
+      onmouseout="this.style.transform='';this.style.filter=''">
+      Continue →
+    </button>`,
+    // Step 2 — Subjects
+    ()=>`
+    <div style="text-align:center;margin-bottom:28px">
+      <div style="font-size:22px;font-weight:800;letter-spacing:-.02em;margin-bottom:6px">Pick your subjects</div>
+      <div style="font-size:13px;color:rgba(200,200,255,.50)">Select all you're studying. You can change this later.</div>
+    </div>
+    <div id="ob-sub-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:28px;max-height:320px;overflow-y:auto">
+      ${OB_SUBJECTS.map(s=>`
+        <div class="ob-sub-card" data-id="${s.id}"
+          onclick="obToggleSub('${s.id}',this)"
+          style="padding:13px 14px;border-radius:12px;border:2px solid rgba(255,255,255,.08);
+          background:rgba(255,255,255,.03);cursor:pointer;display:flex;align-items:center;gap:10px;
+          transition:all .2s cubic-bezier(.34,1.56,.64,1);${_obSubs.includes(s.id)?`border-color:${s.c};background:${s.bg}`:''}"
+          >
+          <span style="font-size:18px;width:24px;text-align:center">${s.sym}</span>
+          <span style="font-size:13px;font-weight:600;color:${_obSubs.includes(s.id)?s.c:'rgba(200,200,255,.8)'}">${s.nm}</span>
+        </div>`).join('')}
+    </div>
+    <div style="display:flex;gap:10px">
+      <button onclick="_obStep=1;renderObStep(document.getElementById('ob-ov'))"
+        style="flex:0 0 auto;padding:13px 20px;border-radius:12px;border:1px solid rgba(255,255,255,.12);
+        background:transparent;color:rgba(200,200,255,.6);font-size:14px;font-family:inherit;cursor:pointer;
+        transition:all .15s ease"
+        onmouseover="this.style.background='rgba(255,255,255,.06)'"
+        onmouseout="this.style.background='transparent'">← Back</button>
+      <button onclick="obFinish()" style="flex:1;padding:13px;border-radius:12px;border:none;
+        background:linear-gradient(135deg,#8052ff,#00d4ff);color:#fff;font-size:15px;font-weight:700;
+        font-family:inherit;cursor:pointer;letter-spacing:.01em;
+        transition:all .22s cubic-bezier(.34,1.56,.64,1)"
+        onmouseover="this.style.transform='scale(1.02)';this.style.filter='brightness(1.1)'"
+        onmouseout="this.style.transform='';this.style.filter=''">
+        Let's go ✦
+      </button>
+    </div>`,
+  ];
+
+  ov.innerHTML=`
+  <div style="width:100%;max-width:440px;padding:36px 40px;
+    background:rgba(10,10,26,.96);backdrop-filter:blur(32px);
+    border:1px solid rgba(255,255,255,.09);border-radius:24px;
+    box-shadow:0 40px 100px rgba(0,0,0,.6)">
+    <div style="display:flex;gap:6px;margin-bottom:36px">
+      ${[1,2].map(i=>`<div style="height:3px;flex:1;border-radius:2px;background:${i<=_obStep?'linear-gradient(90deg,#8052ff,#00d4ff)':'rgba(255,255,255,.1)'}"></div>`).join('')}
+    </div>
+    ${steps[_obStep-1]()}
+  </div>`;
+  if(_obStep===1)setTimeout(()=>document.getElementById('ob-name')?.focus(),80);
+}
+
+function obToggleSub(id,el){
+  const s=OB_SUBJECTS.find(x=>x.id===id);
+  if(_obSubs.includes(id)){
+    _obSubs=_obSubs.filter(x=>x!==id);
+    el.style.borderColor='rgba(255,255,255,.08)';
+    el.style.background='rgba(255,255,255,.03)';
+    el.querySelector('span:last-child').style.color='rgba(200,200,255,.8)';
+  }else{
+    _obSubs.push(id);
+    el.style.borderColor=s.c;
+    el.style.background=s.bg;
+    el.querySelector('span:last-child').style.color=s.c;
+  }
+}
+
+function obNext(){
+  const n=(_obName||document.getElementById('ob-name')?.value||'').trim();
+  if(!n){
+    const inp=document.getElementById('ob-name');
+    if(inp){inp.style.borderColor='rgba(255,107,138,.6)';inp.focus();}
+    return;
+  }
+  _obName=n;
+  _obExam=document.getElementById('ob-exam')?.value||'';
+  _obStep=2;
+  renderObStep(document.getElementById('ob-ov'));
+}
+
+function obFinish(){
+  if(!_obSubs.length){showToast('Pick at least one subject','⚠️');return;}
+  // Commit to actual data
+  userName=_obName;
+  examDate=_obExam;
+  // Populate SUBS from selections
+  _obSubs.forEach(id=>{
+    const cat=OB_SUBJECTS.find(x=>x.id===id);
+    if(cat&&!SUBS.find(s=>s.id===id))SUBS.push({...cat,p:0});
+  });
+  streak=0;
+  dbSave();
+  // Remove onboarding overlay
+  const ov=document.getElementById('ob-ov');
+  if(ov){ov.style.transition='opacity .4s ease';ov.style.opacity='0';setTimeout(()=>ov.remove(),420);}
+  // Start the app
+  setTimeout(()=>{
+    initApp();
+    document.addEventListener('keydown',gKeys);
+    showToast(`Welcome, ${userName}! 🎉`,'✦');
+  },450);
+}
+
 // ─── USER / DATA MANAGEMENT ─────────────────────────────────
 function editName(){
   const n=prompt('Your name:',userName);
   if(n&&n.trim()){
-    Object.defineProperty(window,'userName',{value:n.trim(),writable:true,configurable:true});
-    // eslint-disable-next-line no-global-assign
-    window.userName=n.trim();
+    userName=n.trim();
     const el=document.getElementById('set-name-disp');if(el)el.textContent=n.trim();
+    const av=document.querySelector('.av-name');if(av)av.textContent=n.trim();
     dbSave();showToast('Name saved!','👤');
     rDrawerWelcome();
   }
