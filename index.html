@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>StudyOS — Arjun's Command Center</title>
+<title>StudyOS — Command Center</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -773,7 +773,9 @@ body{
     <div class="set-sec">
       <div class="set-title">About</div>
       <div class="set-row"><div style="font-size:13px;font-weight:500">Version</div><div style="font-size:12px;color:var(--t3)">StudyOS v2.4.0</div></div>
-      <div class="set-row"><div><div style="font-size:13px;font-weight:500">Export data</div><div style="font-size:11px;color:var(--t3)">Download all study data as JSON</div></div><button class="btn btn-s btn-sm" onclick="showToast('Exported!','📦')">Export</button></div>
+      <div class="set-row"><div><div style="font-size:13px;font-weight:500">Your Name</div><div style="font-size:11px;color:var(--t3)" id="set-name-disp">${userName}</div></div><button class="btn btn-s btn-sm" onclick="editName()">Edit</button></div>
+      <div class="set-row"><div><div style="font-size:13px;font-weight:500">Export data</div><div style="font-size:11px;color:var(--t3)">Download all study data as JSON</div></div><button class="btn btn-s btn-sm" onclick="exportData()">Export</button></div>
+      <div class="set-row"><div><div style="font-size:13px;font-weight:500">Reset data</div><div style="font-size:11px;color:var(--t3)">Clear all local data and start fresh</div></div><button class="btn btn-s btn-sm" onclick="resetData()" style="border-color:rgba(255,107,138,.3);color:#ff6b8a">Reset</button></div>
     </div>
   </div>
 </section>
@@ -828,14 +830,35 @@ body{
 <div class="toasts" id="toasts"></div>
 
 <script>
+// ─── LOCAL STORAGE DB ────────────────────────────────────────
+const DB_KEY='studyos_v1';
+function dbLoad(){try{return JSON.parse(localStorage.getItem(DB_KEY)||'null')}catch{return null}}
+function dbSave(){
+  try{localStorage.setItem(DB_KEY,JSON.stringify({
+    name:userName,streak,
+    subs:SUBS.map(s=>({id:s.id,p:s.p})),
+    tasks:TASKS,
+    goals:GOALS.map(g=>({t:g.t,p:g.p})),
+    subProgress:Object.fromEntries(SUBS.map(s=>[s.id,s.p])), // for galaxy.html
+    lastStudy:new Date().toDateString()
+  }));}catch(e){}
+}
+const _db=dbLoad();
+const userName=_db?.name||'Student';
+
 // ─── DATA ───────────────────────────────────────────────────
-const SUBS=[
+const _DEFAULT_SUBS=[
   {id:'m',nm:'Mathematics',sym:'∑',c:'#8052ff',bg:'rgba(128,82,255,.15)',p:65},
   {id:'p',nm:'Physics',    sym:'φ',c:'#00d4ff',bg:'rgba(0,212,255,.15)', p:48},
   {id:'c',nm:'Chemistry',  sym:'⚗',c:'#ffb829',bg:'rgba(255,184,41,.15)',p:62},
   {id:'b',nm:'Biology',    sym:'⬡',c:'#15e8a0',bg:'rgba(21,232,160,.15)',p:35},
 ];
-const TASKS=[
+const SUBS=_DEFAULT_SUBS.map(s=>{
+  const sv=(_db?.subs||[]).find(x=>x.id===s.id);
+  return sv?{...s,p:sv.p}:{...s};
+});
+
+const _DEFAULT_TASKS=[
   {id:1,tx:'HC Verma Ch.23 – Electrostatics',  sub:'Physics',    done:false,pri:'high',due:'Today'},
   {id:2,tx:'Mock Test Analysis – April',        sub:'General',    done:true, pri:'med', due:'Done'},
   {id:3,tx:'Inorganic Chemistry – P-Block',     sub:'Chemistry',  done:false,pri:'med', due:'Today'},
@@ -845,12 +868,17 @@ const TASKS=[
   {id:7,tx:'Coordinate Geometry PYQs',          sub:'Mathematics',done:false,pri:'high',due:'Today'},
   {id:8,tx:'Read NCERT Bio Ch.12',              sub:'Biology',    done:false,pri:'low', due:'Tomorrow'},
 ];
-const GOALS=[
+const TASKS=(_db?.tasks&&_db.tasks.length)?_db.tasks:[..._DEFAULT_TASKS];
+
+const _DEFAULT_GOALS=[
   {t:'Mathematics Mastery',  d:'All JEE Adv. chapters with PYQs', p:65,c:'#8052ff',dt:'Aug 2026'},
   {t:'Physics Excellence',   d:'HC Verma + DC Pandey completion',  p:48,c:'#00d4ff',dt:'Sep 2026'},
   {t:'Chemistry Command',    d:'JD Lee + Solomon Organic done',     p:62,c:'#ffb829',dt:'Jul 2026'},
   {t:'Mock Score ≥ 200',     d:'Consistent 200+ in full mocks',     p:35,c:'#ff6b8a',dt:'Dec 2026'},
 ];
+const GOALS=(_db?.goals&&_db.goals.length)?_DEFAULT_GOALS.map(g=>{
+  const sv=_db.goals.find(x=>x.t===g.t);return sv?{...g,p:sv.p}:{...g};
+}):[..._DEFAULT_GOALS];
 const CMDS=[
   {ic:'⌂',tx:'Dashboard',   sb:'Go home',           ac:()=>go('home',null)},
   {ic:'📅',tx:'Planner',    sb:'Weekly planner',    ac:()=>go('planner',null)},
@@ -882,7 +910,7 @@ const PLISTS=[
 // ─── STATE ──────────────────────────────────────────────────
 let tSec=25*60,tTot=25*60,tRun=false,tIv=null,tSess=1,tMod='focus';
 const MODES={focus:{lbl:'DEEP FOCUS',s:25*60,c:'#8052ff'},short:{lbl:'SHORT BREAK',s:5*60,c:'#15e8a0'},long:{lbl:'LONG BREAK',s:15*60,c:'#00d4ff'}};
-let streak=parseInt(localStorage.getItem('streak')||'14');
+let streak=_db?.streak??parseInt(localStorage.getItem('streak')||'14');
 let drawerOpen=false,cmdOpen=false,tflt='all',spOn=false;
 let cmdList=[...CMDS],cmdSel=0;
 
@@ -979,7 +1007,7 @@ function rFTasks(){
 }
 function chkTask(id){
   const t=TASKS.find(t=>t.id===id);
-  if(t){t.done=!t.done;rHT();rFTasks();showToast(t.done?'Task done! 🎉':'Reopened','✅');}
+  if(t){t.done=!t.done;rHT();rFTasks();showToast(t.done?'Task done! 🎉':'Reopened','✅');dbSave();}
 }
 function flt(f,el){
   tflt=f;
@@ -988,7 +1016,7 @@ function flt(f,el){
 }
 function addTask(){
   const tx=prompt('New task:');
-  if(tx){TASKS.push({id:Date.now(),tx,sub:'General',done:false,pri:'med',due:'Today'});rFTasks();rHT();showToast('Task added!','✅');}
+  if(tx){TASKS.push({id:Date.now(),tx,sub:'General',done:false,pri:'med',due:'Today'});rFTasks();rHT();showToast('Task added!','✅');dbSave();}
 }
 function rGoals(){
   document.getElementById('goals').innerHTML=GOALS.map(g=>`
@@ -1041,7 +1069,7 @@ function rPlists(){
 }
 function rDrawerWelcome(){
   document.getElementById('dr-msgs').innerHTML=`<div class="msg ai">
-    <div class="mb">Hey Arjun! 👋 I'm your AI tutor powered by NVIDIA NIM.<br><br>Ask me anything — Physics derivations, Organic mechanisms, Calculus proofs. What are we tackling today?</div>
+    <div class="mb">Hey ${userName}! 👋 I'm your AI tutor powered by NVIDIA NIM.<br><br>Ask me anything — Physics derivations, Organic mechanisms, Calculus proofs. What are we tackling today?</div>
     <div class="mt">Now</div></div>`;
   document.getElementById('dr-chips').innerHTML=
     ['Explain Gauss Law','Help with Integration','Organic Mechanisms','Limits & Continuity'].map(s=>
@@ -1063,6 +1091,7 @@ function tTick(){
     if(tMod==='focus'){
       tSess=Math.min(4,tSess+1);rDots();rBDots();
       showToast('Focus complete! Time for a break 🎉','✅');
+      dbSave();
       tMode('short',null);
     } else {showToast('Break over! Back to it 💪','⏱');tMode('focus',null);}
     return;
@@ -1185,6 +1214,29 @@ function showToast(msg,icon='ℹ'){
 }
 
 // ─── GLOBAL KEYS ────────────────────────────────────────────
+// ─── USER / DATA MANAGEMENT ─────────────────────────────────
+function editName(){
+  const n=prompt('Your name:',userName);
+  if(n&&n.trim()){
+    Object.defineProperty(window,'userName',{value:n.trim(),writable:true,configurable:true});
+    // eslint-disable-next-line no-global-assign
+    window.userName=n.trim();
+    const el=document.getElementById('set-name-disp');if(el)el.textContent=n.trim();
+    dbSave();showToast('Name saved!','👤');
+    rDrawerWelcome();
+  }
+}
+function exportData(){
+  const blob=new Blob([JSON.stringify({subs:SUBS,tasks:TASKS,goals:GOALS,streak},null,2)],{type:'application/json'});
+  const a=Object.assign(document.createElement('a'),{href:URL.createObjectURL(blob),download:'studyos-data.json'});
+  a.click();showToast('Exported!','📦');
+}
+function resetData(){
+  if(confirm('Reset all your StudyOS data? This cannot be undone.')){
+    localStorage.removeItem(DB_KEY);location.reload();
+  }
+}
+
 function gKeys(e){
   if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();cmdOpen?closeCmd():openCmd();}
   if(e.key==='Escape'){if(drawerOpen)toggleDrawer();if(cmdOpen)closeCmd();}
