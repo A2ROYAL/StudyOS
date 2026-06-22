@@ -1457,25 +1457,37 @@ function aiConnected(){return aiConfig().type!=='none';}
 const AI_NAMES={nim:'NVIDIA NIM',openai:'OpenAI-compatible',ollama:'Ollama (local)',none:'Offline'};
 async function callNIM(q,fallback){
   const c=aiConfig();
+  if(c.type==='none')return fallback||localReply(q);
   const sys='You are an expert, encouraging study tutor. Be concise, clear, and step-by-step. Use markdown.';
+  let url,opts,ollama=false;
+  if(c.type==='ollama'){
+    ollama=true;const base=(c.base||'http://localhost:11434').replace(/\/$/,'');
+    url=base+'/api/chat';
+    opts={method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:c.model||'llama3.1',stream:false,messages:[{role:'system',content:sys},{role:'user',content:q}]})};
+  }else{
+    const base=c.type==='nim'?'https://integrate.api.nvidia.com/v1':(c.base||'https://api.openai.com/v1').replace(/\/$/,'');
+    const model=c.model||(c.type==='nim'?'nvidia/llama-3.1-nemotron-70b-instruct':'gpt-4o-mini');
+    url=base+'/chat/completions';
+    opts={method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(c.key||'')},body:JSON.stringify({model,messages:[{role:'system',content:sys},{role:'user',content:q}],max_tokens:600,temperature:.6})};
+  }
   try{
-    if(c.type==='nim'){
-      if(!c.key)throw 0;
-      const r=await fetch('https://integrate.api.nvidia.com/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+c.key},body:JSON.stringify({model:c.model||'nvidia/llama-3.1-nemotron-70b-instruct',messages:[{role:'system',content:sys},{role:'user',content:q}],max_tokens:600,temperature:.6})});
-      if(!r.ok)throw 0;const d=await r.json();return d.choices?.[0]?.message?.content||fallback||localReply(q);
+    const r=await fetch(url,opts);
+    if(!r.ok){
+      if(fallback)return fallback;
+      let det='';try{det=(await r.text()).slice(0,180);}catch(e){}
+      if(r.status===401||r.status===403)return '⚠️ Your API key was rejected (HTTP '+r.status+'). Re-check it in **Settings → Connect AI**.';
+      if(r.status===404)return '⚠️ Model not found (HTTP 404). Pick a valid model in **Settings → Connect AI**.'+(det?'\n\n`'+det+'`':'');
+      return '⚠️ '+AI_NAMES[c.type]+' returned HTTP '+r.status+'.'+(det?'\n\n`'+det+'`':'');
     }
-    if(c.type==='openai'){
-      if(!c.key)throw 0;const base=(c.base||'https://api.openai.com/v1').replace(/\/$/,'');
-      const r=await fetch(base+'/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+c.key},body:JSON.stringify({model:c.model||'gpt-4o-mini',messages:[{role:'system',content:sys},{role:'user',content:q}],max_tokens:600,temperature:.6})});
-      if(!r.ok)throw 0;const d=await r.json();return d.choices?.[0]?.message?.content||fallback||localReply(q);
-    }
-    if(c.type==='ollama'){
-      const base=(c.base||'http://localhost:11434').replace(/\/$/,'');
-      const r=await fetch(base+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:c.model||'llama3.1',stream:false,messages:[{role:'system',content:sys},{role:'user',content:q}]})});
-      if(!r.ok)throw 0;const d=await r.json();return d.message?.content||fallback||localReply(q);
-    }
-  }catch(e){return (fallback||localReply(q))+"\n\n*(⚠️ Couldn't reach your AI provider — check it in Settings → Connect AI.)*";}
-  return fallback||localReply(q);
+    const d=await r.json();
+    const out=ollama?d.message?.content:d.choices?.[0]?.message?.content;
+    return out||fallback||localReply(q);
+  }catch(e){
+    if(fallback)return fallback;
+    if(c.type==='nim')return "⚠️ **NVIDIA NIM can't be called directly from a browser.** Its cloud endpoint sends no CORS headers, so the request is blocked — this is an NVIDIA limitation, not your key.\n\n**Options that work in a local app:**\n- **Ollama** (local, free) — start it with `OLLAMA_ORIGINS=* ollama serve`\n- **OpenAI-compatible** providers (OpenAI, OpenRouter, Groq…) allow browser calls\n- Or run your own proxy for NIM and set it as the OpenAI-compatible **Base URL**\n\nSwitch provider in **Settings → Connect AI**.";
+    if(c.type==='ollama')return "⚠️ Couldn't reach Ollama at "+(c.base||'http://localhost:11434')+".\n\nMake sure it's running and was started with `OLLAMA_ORIGINS=* ollama serve` so the browser is allowed to connect.";
+    return "⚠️ Couldn't reach the provider (network or CORS block). If you opened StudyOS as a `file://` page, try serving it over http, or use Ollama (local).";
+  }
 }
 function tryMath(s){
   let t=String(s).trim();
@@ -1510,9 +1522,9 @@ function connectAI(){
     <div class="row"><label class="flbl">Provider</label>
       <select class="field" id="ai-type" onchange="aiTypeChange(this.value)">
         <option value="none">Offline — no AI</option>
-        <option value="nim">NVIDIA NIM — free key</option>
-        <option value="ollama">Ollama — local, no key</option>
-        <option value="openai">OpenAI-compatible</option>
+        <option value="ollama">Ollama — local, recommended ✓</option>
+        <option value="openai">OpenAI-compatible — browser-friendly ✓</option>
+        <option value="nim">NVIDIA NIM — needs a proxy/server</option>
       </select></div>
     <div id="ai-fields"></div>
   `,()=>{
@@ -1528,7 +1540,7 @@ function connectAI(){
 function aiTypeChange(t){
   const c=aiConfig();const box=document.getElementById('ai-fields');if(!box)return;
   const f=(lbl,id,ph,v)=>`<div class="row"><label class="flbl">${lbl}</label><input class="field" id="${id}" placeholder="${ph}" value="${esc(v||'')}"></div>`;
-  if(t==='nim')box.innerHTML=`<div class="sub">Get a free key at build.nvidia.com → copy it here.</div>`+f('API key','ai-key','nvapi-…',c.type==='nim'?c.key:'')+f('Model (optional)','ai-model','nvidia/llama-3.1-nemotron-70b-instruct',c.type==='nim'?c.model:'');
+  if(t==='nim')box.innerHTML=`<div class="sub" style="color:var(--amber)">⚠️ NVIDIA's cloud endpoint blocks direct browser calls (no CORS). The key saves, but answers only work if StudyOS is served through your own proxy/backend. On a local file, use <b>Ollama</b> or an <b>OpenAI-compatible</b> provider instead.</div>`+f('API key','ai-key','nvapi-…',c.type==='nim'?c.key:'')+f('Model (optional)','ai-model','nvidia/llama-3.1-nemotron-70b-instruct',c.type==='nim'?c.model:'');
   else if(t==='openai')box.innerHTML=f('API key','ai-key','sk-…',c.type==='openai'?c.key:'')+f('Base URL','ai-base','https://api.openai.com/v1',c.type==='openai'?c.base:'')+f('Model','ai-model','gpt-4o-mini',c.type==='openai'?c.model:'');
   else if(t==='ollama')box.innerHTML=`<div class="sub">Run Ollama locally. Tip: start it with <code>OLLAMA_ORIGINS=* ollama serve</code> so the browser can reach it.</div>`+f('Server URL','ai-base','http://localhost:11434',c.type==='ollama'?c.base:'http://localhost:11434')+f('Model','ai-model','llama3.1',c.type==='ollama'?c.model:'llama3.1');
   else box.innerHTML=`<div class="sub" style="margin-bottom:0">Offline tutor handles arithmetic and study tips. Connect a provider above for full answers.</div>`;
