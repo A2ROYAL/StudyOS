@@ -807,7 +807,7 @@ textarea.field{resize:vertical;min-height:80px;line-height:1.5}
     </div>
     <div class="set-sec">
       <div class="set-title">AI Tutor</div>
-      <div class="set-row"><div><div style="font-size:13px;font-weight:500">NVIDIA NIM API key</div><div style="font-size:11px;color:var(--t3)" id="set-key">Not set — using offline tutor</div></div><button class="btn btn-s btn-sm" onclick="editKey()">Set key</button></div>
+      <div class="set-row"><div><div style="font-size:13px;font-weight:500">AI provider</div><div style="font-size:11px;color:var(--t3)" id="set-key">Not connected — using offline tutor</div></div><button class="btn btn-s btn-sm" onclick="connectAI()">Connect</button></div>
     </div>
     <div class="set-sec">
       <div class="set-title">Pomodoro</div>
@@ -1409,7 +1409,15 @@ function spToggle(){spOn=!spOn;document.getElementById('sp-play').textContent=sp
 
 // ════════════ AI TUTOR ════════════
 function rDrawerWelcome(){
-  document.getElementById('dr-msgs').innerHTML=aiMsg(`Hey ${userName||'there'}! 👋 I'm your AI tutor.\n\nAsk me anything — concept explanations, step-by-step solutions, or memory tricks. What are we tackling today?`);
+  let html=aiMsg(`Hey ${userName||'there'}! 👋 I'm your AI tutor.\n\nAsk me anything — concept explanations, step-by-step solutions, or memory tricks. What are we tackling today?`);
+  if(!aiConnected()){
+    html+=`<div class="msg ai"><div class="msg-av">🔌</div><div class="mb">
+      <b>I'm in offline mode right now.</b><br>I can do quick arithmetic and study tips, but for full step-by-step answers I need a brain. Connect one — it's free:
+      <div style="margin-top:11px"><button class="btn btn-p btn-sm" onclick="connectAI()">🔌 Connect AI</button></div>
+      <div style="font-size:11px;color:var(--t3);margin-top:9px">NVIDIA NIM (free key) · local Ollama (no key) · any OpenAI-compatible API.</div>
+    </div></div>`;
+  }
+  document.getElementById('dr-msgs').innerHTML=html;
   const subjChips=SUBS.slice(0,4).map(s=>'Explain a '+s.nm+' topic');
   const chips=subjChips.length?subjChips:['Explain a tough concept','Help me with a problem','Quiz me','Study tips'];
   document.getElementById('dr-chips').innerHTML=chips.map(s=>`<div class="dr-chip" onclick="drQuick('${esc(s).replace(/'/g,"\\'")}')">${esc(s)}</div>`).join('');
@@ -1439,24 +1447,47 @@ function drSend(){
     document.getElementById('dr-send').disabled=false;
   });
 }
+function aiConfig(){
+  try{const c=JSON.parse(localStorage.getItem('studyos_ai')||'null');if(c&&c.type)return c;}catch(e){}
+  const legacy=localStorage.getItem('nim_api_key');
+  if(legacy)return{type:'nim',key:legacy};
+  return{type:'none'};
+}
+function aiConnected(){return aiConfig().type!=='none';}
+const AI_NAMES={nim:'NVIDIA NIM',openai:'OpenAI-compatible',ollama:'Ollama (local)',none:'Offline'};
 async function callNIM(q,fallback){
-  const k=localStorage.getItem('nim_api_key')||'';
-  if(k){
-    try{
-      const r=await fetch('https://integrate.api.nvidia.com/v1/chat/completions',{
-        method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+k},
-        body:JSON.stringify({model:'nvidia/llama-3.1-nemotron-70b-instruct',
-          messages:[{role:'system',content:'You are an expert, encouraging study tutor. Be concise, clear, and step-by-step. Use markdown.'},
-                    {role:'user',content:q}],max_tokens:600,temperature:0.6})
-      });
-      if(!r.ok)throw 0;
-      const d=await r.json();
-      return d.choices?.[0]?.message?.content||fallback||localReply(q);
-    }catch{return fallback||localReply(q);}
-  }
+  const c=aiConfig();
+  const sys='You are an expert, encouraging study tutor. Be concise, clear, and step-by-step. Use markdown.';
+  try{
+    if(c.type==='nim'){
+      if(!c.key)throw 0;
+      const r=await fetch('https://integrate.api.nvidia.com/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+c.key},body:JSON.stringify({model:c.model||'nvidia/llama-3.1-nemotron-70b-instruct',messages:[{role:'system',content:sys},{role:'user',content:q}],max_tokens:600,temperature:.6})});
+      if(!r.ok)throw 0;const d=await r.json();return d.choices?.[0]?.message?.content||fallback||localReply(q);
+    }
+    if(c.type==='openai'){
+      if(!c.key)throw 0;const base=(c.base||'https://api.openai.com/v1').replace(/\/$/,'');
+      const r=await fetch(base+'/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+c.key},body:JSON.stringify({model:c.model||'gpt-4o-mini',messages:[{role:'system',content:sys},{role:'user',content:q}],max_tokens:600,temperature:.6})});
+      if(!r.ok)throw 0;const d=await r.json();return d.choices?.[0]?.message?.content||fallback||localReply(q);
+    }
+    if(c.type==='ollama'){
+      const base=(c.base||'http://localhost:11434').replace(/\/$/,'');
+      const r=await fetch(base+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:c.model||'llama3.1',stream:false,messages:[{role:'system',content:sys},{role:'user',content:q}]})});
+      if(!r.ok)throw 0;const d=await r.json();return d.message?.content||fallback||localReply(q);
+    }
+  }catch(e){return (fallback||localReply(q))+"\n\n*(⚠️ Couldn't reach your AI provider — check it in Settings → Connect AI.)*";}
   return fallback||localReply(q);
 }
+function tryMath(s){
+  let t=String(s).trim();
+  if(!/^[\d+\-*/.()%^\s]+$/.test(t))return null;
+  if(!/\d/.test(t)||!/[+\-*/^%]/.test(t))return null;
+  t=t.replace(/\^/g,'**');
+  try{const v=Function('"use strict";return ('+t+')')();if(typeof v==='number'&&isFinite(v))return Math.round(v*1e6)/1e6;}catch(e){}
+  return null;
+}
 function localReply(q){
+  const calc=tryMath(q);
+  if(calc!==null)return "`"+q.trim()+"` = **"+calc+"**\n\nSolved that locally. For step-by-step working on harder problems, connect an AI provider in **Settings → Connect AI** (free NVIDIA NIM, local Ollama, or any OpenAI-compatible API).";
   const ql=q.toLowerCase();
   if(ql.includes('gauss'))return"**Gauss's Law:** ∮E·dA = Q/ε₀\n\n1. Pick a Gaussian surface matching the charge symmetry\n2. E is constant over the surface\n3. Flux = E × Area\n\nFor a sphere: **E = Q/(4πε₀r²)** outside. A classic derivation worth memorizing.";
   if(ql.includes('integrat'))return"**Integration essentials:**\n\n- **By parts:** ∫u dv = uv − ∫v du (ILATE order)\n- **Substitution:** spot f(g(x))·g'(x), let t = g(x)\n- **Partial fractions** for rational functions\n\nMost exam integrals reduce to these three. Practice ~20 a day.";
@@ -1467,10 +1498,40 @@ function localReply(q){
 function drKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();drSend();}}
 function drResize(el){el.style.height='';el.style.height=Math.min(el.scrollHeight,110)+'px';}
 function updateAIStatus(){
-  const has=!!(localStorage.getItem('nim_api_key')||'');
-  document.getElementById('dr-mode').textContent=has?'NIM connected':'Offline mode';
-  document.getElementById('st-ai').textContent=has?'NIM CONNECTED':'OFFLINE TUTOR';
-  const sk=document.getElementById('set-key');if(sk)sk.textContent=has?'Key set ✓ — full AI enabled':'Not set — using offline tutor';
+  const c=aiConfig();const connected=c.type!=='none';
+  document.getElementById('dr-mode').textContent=connected?AI_NAMES[c.type]+' connected':'Offline mode';
+  document.getElementById('st-ai').textContent=connected?AI_NAMES[c.type].toUpperCase():'OFFLINE TUTOR';
+  const sk=document.getElementById('set-key');if(sk)sk.textContent=connected?AI_NAMES[c.type]+(c.model?' · '+c.model:'')+' ✓':'Not connected — using offline tutor';
+}
+function connectAI(){
+  const c=aiConfig();
+  modal('Connect AI',`
+    <div class="sub">Pick a provider so the tutor gives real, full answers. Everything is stored only on this device.</div>
+    <div class="row"><label class="flbl">Provider</label>
+      <select class="field" id="ai-type" onchange="aiTypeChange(this.value)">
+        <option value="none">Offline — no AI</option>
+        <option value="nim">NVIDIA NIM — free key</option>
+        <option value="ollama">Ollama — local, no key</option>
+        <option value="openai">OpenAI-compatible</option>
+      </select></div>
+    <div id="ai-fields"></div>
+  `,()=>{
+    const t=val('ai-type');let cfg={type:t};
+    if(t==='nim'){cfg.key=val('ai-key').trim();const m=val('ai-model').trim();if(m)cfg.model=m;if(!cfg.key){showToast('Enter your NIM key','⚠️');return false;}}
+    else if(t==='openai'){cfg.key=val('ai-key').trim();cfg.base=val('ai-base').trim()||'https://api.openai.com/v1';const m=val('ai-model').trim();if(m)cfg.model=m;if(!cfg.key){showToast('Enter an API key','⚠️');return false;}}
+    else if(t==='ollama'){cfg.base=val('ai-base').trim()||'http://localhost:11434';cfg.model=val('ai-model').trim()||'llama3.1';}
+    localStorage.setItem('studyos_ai',JSON.stringify(cfg));localStorage.removeItem('nim_api_key');
+    updateAIStatus();rDrawerWelcome();showToast(t==='none'?'Using offline tutor':AI_NAMES[t]+' connected ✓','🔌');
+  });
+  setTimeout(()=>{const s=document.getElementById('ai-type');if(s){s.value=c.type;aiTypeChange(c.type);}},20);
+}
+function aiTypeChange(t){
+  const c=aiConfig();const box=document.getElementById('ai-fields');if(!box)return;
+  const f=(lbl,id,ph,v)=>`<div class="row"><label class="flbl">${lbl}</label><input class="field" id="${id}" placeholder="${ph}" value="${esc(v||'')}"></div>`;
+  if(t==='nim')box.innerHTML=`<div class="sub">Get a free key at build.nvidia.com → copy it here.</div>`+f('API key','ai-key','nvapi-…',c.type==='nim'?c.key:'')+f('Model (optional)','ai-model','nvidia/llama-3.1-nemotron-70b-instruct',c.type==='nim'?c.model:'');
+  else if(t==='openai')box.innerHTML=f('API key','ai-key','sk-…',c.type==='openai'?c.key:'')+f('Base URL','ai-base','https://api.openai.com/v1',c.type==='openai'?c.base:'')+f('Model','ai-model','gpt-4o-mini',c.type==='openai'?c.model:'');
+  else if(t==='ollama')box.innerHTML=`<div class="sub">Run Ollama locally. Tip: start it with <code>OLLAMA_ORIGINS=* ollama serve</code> so the browser can reach it.</div>`+f('Server URL','ai-base','http://localhost:11434',c.type==='ollama'?c.base:'http://localhost:11434')+f('Model','ai-model','llama3.1',c.type==='ollama'?c.model:'llama3.1');
+  else box.innerHTML=`<div class="sub" style="margin-bottom:0">Offline tutor handles arithmetic and study tips. Connect a provider above for full answers.</div>`;
 }
 
 // ════════════ markdown (safe) ════════════
@@ -1564,8 +1625,7 @@ function editName(){modal('Edit Name',`<div class="row"><label class="flbl">Your
   ()=>{const n=val('e-n').trim();if(!n)return false;userName=n;dbSave();updateHero();syncSettingsUI();rDrawerWelcome();showToast('Saved','👤');});}
 function editDate(){modal('Target / Exam Date',`<div class="row"><label class="flbl">Date</label><input class="field" type="date" id="e-d" value="${examDate}" min="${new Date().toISOString().slice(0,10)}" max="2045-12-31"></div>`,
   ()=>{const d=val('e-d');if(d){const dt=new Date(d);const yr=dt.getFullYear();if(isNaN(dt)||yr<2024||yr>2045){showToast('Pick a realistic date','⚠️');return false;}}examDate=d;dbSave();updateHero();rWeek();syncSettingsUI();showToast('Saved','📅');});}
-function editKey(){const cur=localStorage.getItem('nim_api_key')||'';modal('NVIDIA NIM API Key',`<div class="sub">Free at build.nvidia.com. Stored only on this device.</div><div class="row"><input class="field" id="e-k" placeholder="nvapi-…" value="${esc(cur)}"></div>`,
-  ()=>{const k=val('e-k').trim();if(k)localStorage.setItem('nim_api_key',k);else localStorage.removeItem('nim_api_key');updateAIStatus();showToast(k?'Key saved — AI enabled':'Key cleared','🔑');});}
+function editKey(){connectAI();}
 function editProfile(){
   modal('Profile',`
     <div class="row"><label class="flbl">Country</label><select class="field" id="e-c">${COUNTRIES.map(c=>`<option ${c===country?'selected':''}>${c}</option>`).join('')}</select></div>
