@@ -404,6 +404,32 @@ textarea.field{resize:vertical;min-height:80px;line-height:1.5}
 .spb:hover{color:var(--t1);transform:scale(1.15)}
 .spb.main{font-size:28px;color:#1db954}
 
+/* CALENDAR */
+.cal-wrap{max-width:840px}
+.cal-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px}
+@media(max-width:680px){.cal-stats{grid-template-columns:repeat(2,1fr)}}
+.cal-stat{background:var(--glass);border:1px solid var(--border);border-radius:14px;padding:14px 16px;position:relative;overflow:hidden}
+.cal-stat .v{font-size:22px;font-weight:800}
+.cal-stat .l{font-size:10px;color:var(--t3);letter-spacing:.07em;text-transform:uppercase;margin-top:3px}
+.cal-top{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.cal-title{font-size:17px;font-weight:800;min-width:190px}
+.cal-nav{width:34px;height:34px;border-radius:10px;border:1px solid var(--border);background:var(--glass);color:var(--t1);cursor:pointer;font-size:16px;transition:all .18s var(--spring)}
+.cal-nav:hover{background:var(--glass-h);border-color:var(--border-b);transform:scale(1.08)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.cal-dow{font-size:10px;font-weight:700;color:var(--t3);text-align:center;padding:4px 0;letter-spacing:.06em}
+.cal-cell{aspect-ratio:1;border-radius:12px;border:1px solid var(--border);background:var(--glass);
+  padding:7px 8px;cursor:pointer;position:relative;transition:all .16s var(--spring);display:flex;flex-direction:column}
+.cal-cell:hover{background:var(--glass-h);border-color:var(--border-b);transform:translateY(-2px);box-shadow:var(--sh-sm)}
+.cal-cell.out{opacity:.28;pointer-events:none}
+.cal-cell.today{border-color:var(--violet);box-shadow:inset 0 0 0 1px var(--violet)}
+.cal-dnum{font-size:13px;font-weight:600}
+.cal-min{font-size:9px;color:var(--t3);margin-top:1px}
+.cal-dots{display:flex;gap:3px;flex-wrap:wrap;margin-top:auto}
+.cal-dot{width:7px;height:7px;border-radius:50%}
+.cal-legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:18px}
+.cal-leg{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t2)}
+.cal-leg i{width:9px;height:9px;border-radius:50%;display:inline-block}
+
 /* STATUS BAR */
 .statusbar{grid-area:st;background:var(--bg-1);border-top:1px solid var(--border);
   display:flex;align-items:center;padding:0 16px;gap:14px;
@@ -546,6 +572,7 @@ textarea.field{resize:vertical;min-height:80px;line-height:1.5}
   <div class="nav" onclick="go('tasks',this)"><span class="nav-ic">✓</span>Tasks<span class="nbadge" id="nbadge">0</span></div>
   <div class="nav" onclick="go('goals',this)"><span class="nav-ic">🎯</span>Goals</div>
   <div class="nav" onclick="go('timer',this)"><span class="nav-ic">⏱</span>Pomodoro</div>
+  <div class="nav" onclick="go('calendar',this)"><span class="nav-ic">🗓</span>Calendar</div>
   <a class="nav" href="galaxy.html" style="text-decoration:none"><span class="nav-ic">🌌</span>Galaxy</a>
   <div class="sb-sec">Tools</div>
   <div class="nav" onclick="go('tools',this)"><span class="nav-ic">🤖</span>AI Tools</div>
@@ -772,24 +799,42 @@ textarea.field{resize:vertical;min-height:80px;line-height:1.5}
   <div id="res-list"></div>
 </section>
 
-<!-- SPOTIFY -->
-<section class="panel" id="panel-spotify">
-  <div class="ph"><div class="ph-title">Music</div><div class="ph-sub">Lo-fi beats to stay in flow</div></div>
-  <div style="display:grid;grid-template-columns:auto 1fr;gap:24px;align-items:start">
-    <div class="sp-card">
-      <div class="sp-art">🎵</div>
-      <div style="font-size:15px;font-weight:700;margin-bottom:3px" id="sp-song">Lofi Study Session</div>
-      <div style="font-size:12px;color:var(--t2);margin-bottom:8px">ChilledCow · Study Beats</div>
-      <div class="sp-bar-w"><div class="sp-bar" id="sp-bar"></div></div>
-      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--t3);margin-bottom:14px"><span>1:24</span><span>3:58</span></div>
-      <div class="sp-ctrls">
-        <div class="spb">⟨⟨</div>
-        <div class="spb main" id="sp-play" onclick="spToggle()">▶</div>
-        <div class="spb">⟩⟩</div>
-        <div class="spb">🔀</div>
-      </div>
+<!-- CALENDAR -->
+<section class="panel" id="panel-calendar">
+  <div class="ph"><div class="ph-title">Calendar</div><div class="ph-sub">Mark your days, track streaks, and never miss a deadline</div>
+    <div class="ph-acts">
+      <button class="btn btn-p btn-sm" onclick="markToday()">🔥 Mark today studied</button>
+      <button class="btn btn-s btn-sm" onclick="calToday()">Today</button>
+    </div></div>
+  <div class="cal-wrap">
+    <div class="cal-stats" id="cal-stats"></div>
+    <div class="cal-top">
+      <button class="cal-nav" onclick="calMove(-1)">‹</button>
+      <div class="cal-title" id="cal-title"></div>
+      <button class="cal-nav" onclick="calMove(1)">›</button>
     </div>
-    <div><div class="sh-t" style="margin-bottom:10px">Focus Playlists</div><div id="plists"></div></div>
+    <div class="cal-grid" id="cal-grid"></div>
+    <div class="cal-legend" id="cal-legend"></div>
+  </div>
+</section>
+
+<!-- MUSIC / SPOTIFY -->
+<section class="panel" id="panel-spotify">
+  <div class="ph"><div class="ph-title">Music</div><div class="ph-sub">Connect your own Spotify and play your playlists right here</div></div>
+  <div style="max-width:780px">
+    <div class="card" style="margin-bottom:16px">
+      <label class="flbl">Paste a Spotify link — playlist, album, artist or track</label>
+      <div style="display:flex;gap:8px">
+        <input class="field" id="sp-url" placeholder="https://open.spotify.com/playlist/…" onkeydown="if(event.key==='Enter')loadSpotify()">
+        <button class="btn btn-p" onclick="loadSpotify()">Load</button>
+      </div>
+      <div style="font-size:11px;color:var(--t3);margin-top:9px">In Spotify: ••• → Share → Copy link. Log in inside the player to hear full tracks (Premium); otherwise Spotify gives 30-second previews.</div>
+    </div>
+    <div id="sp-embed"></div>
+    <div class="sh" style="margin-top:20px"><div class="sh-t">Your saved playlists</div></div>
+    <div id="sp-saved"></div>
+    <div class="sh" style="margin-top:20px"><div class="sh-t">Quick picks</div></div>
+    <div id="plists"></div>
   </div>
 </section>
 
@@ -926,6 +971,15 @@ let CARDS=_db?.cards?[..._db.cards]:[];
 let HIST=_db?.history||{};            // {dateStr: minutes}
 let counters=Object.assign({chapters:0,mocks:0,totalMin:0},_db?.counters||{});
 let DAYPLAN=_db?.dayplan||null;
+let SPOTI=_db?.spoti||[];             // saved Spotify items [{name,type,id}]
+let MARKS=_db?.marks||{};             // calendar marks {dateStr:{type,note}}
+const SP_PICKS=[
+  {name:'Deep Focus',type:'playlist',id:'37i9dQZF1DWZeKCadgRdKQ'},
+  {name:'lofi beats',type:'playlist',id:'0vvXsWCC9xrXsKd4FyS8kM'},
+  {name:'Peaceful Piano',type:'playlist',id:'37i9dQZF1DX4sWSpwq3LiO'},
+  {name:'Jazz Vibes',type:'playlist',id:'37i9dQZF1DX0SM0LYsmbMT'},
+];
+const MARK_TYPES={study:{lbl:'Studied',c:'#15e8a0'},exam:{lbl:'Exam/Test',c:'#ff6b8a'},task:{lbl:'Deadline',c:'#ffb829'},rest:{lbl:'Rest day',c:'#00d4ff'},goal:{lbl:'Milestone',c:'#8052ff'}};
 
 function dbSave(){
   try{localStorage.setItem(DB_KEY,JSON.stringify({
@@ -933,7 +987,7 @@ function dbSave(){
     subs:SUBS.map(s=>({id:s.id,p:s.p})),
     subProgress:Object.fromEntries(SUBS.map(s=>[s.id,s.p])),
     tasks:TASKS,goals:GOALS,resources:RES,notes:NOTES,cards:CARDS,
-    history:HIST,counters,dayplan:DAYPLAN,
+    history:HIST,counters,dayplan:DAYPLAN,spoti:SPOTI,marks:MARKS,
     lastStudy:new Date().toDateString()
   }));}catch(e){}
 }
@@ -964,6 +1018,7 @@ const CMDS=[
   {ic:'✓',tx:'Tasks',sb:'Task list',ac:()=>go('tasks',null)},
   {ic:'🎯',tx:'Goals',sb:'Mastery & milestones',ac:()=>go('goals',null)},
   {ic:'⏱',tx:'Pomodoro',sb:'Start focusing',ac:()=>go('timer',null),kbd:'Alt+T'},
+  {ic:'🗓',tx:'Calendar',sb:'Mark days & streaks',ac:()=>go('calendar',null)},
   {ic:'🧠',tx:'AI Tutor',sb:'Ask a question',ac:toggleDrawer,kbd:'Alt+A'},
   {ic:'📝',tx:'Smart Notes',sb:'Notes & summaries',ac:()=>go('notes',null)},
   {ic:'🃏',tx:'Flashcards',sb:'Study decks',ac:()=>go('cards',null)},
@@ -988,14 +1043,15 @@ document.addEventListener('DOMContentLoaded',()=>{
 });
 
 function initApp(){
-  rSubs();rHT();rHmap();rWeek();rFTasks();rGoals();rGoalSubs();rPlists();rDrawerWelcome();
-  rQLaunch();rResources();rNotes();rCards();renderCmd('');rDayPlan();
+  rSubs();rHT();rHmap();rWeek();rFTasks();rGoals();rGoalSubs();rMusic();rDrawerWelcome();
+  rQLaunch();rResources();rNotes();rCards();renderCmd('');rDayPlan();rCalendar();
   stagger();updateHero();updateStats();syncSettingsUI();updateAIStatus();
   const h=new Date().getHours();
   document.getElementById('tod').textContent=h<12?'MORNING':h<17?'AFTERNOON':'EVENING';
 }
 
 function updateHero(){
+  streak=calcStreak();
   document.getElementById('hero-name').textContent=`Welcome back, ${userName||'Scholar'} 👋`;
   const dl=daysLeft();
   const tag=document.getElementById('hero-tag');
@@ -1041,14 +1097,8 @@ function logStudy(minutes){
   const today=new Date().toDateString();
   HIST[today]=(HIST[today]||0)+minutes;
   counters.totalMin=(counters.totalMin||0)+minutes;
-  // streak: count if studied today and was studying yesterday or first time
-  const last=_db?.lastStudy;
-  const y=new Date(Date.now()-864e5).toDateString();
-  if(HIST[today]===minutes){ // first session today
-    if(last===y||last===undefined||last===today) streak=streak+ (last===today?0:1);
-    else streak=1;
-  }
-  dbSave();updateStats();updateHero();rHmap();
+  streak=calcStreak();
+  dbSave();updateStats();updateHero();rHmap();rCalendar();
 }
 
 // ════════════ NAV ════════════
@@ -1401,11 +1451,130 @@ function addResource(){
 }
 function delRes(id){RES=RES.filter(r=>r.id!==id);dbSave();rResources();showToast('Removed','🗑️');}
 
-// ════════════ MUSIC ════════════
-function rPlists(){document.getElementById('plists').innerHTML=PLISTS.map(l=>`
-  <div class="trow" onclick="showToast('Playing: ${l.n}','♪')"><span style="font-size:20px">${l.e}</span>
-    <div><div style="font-size:13px;font-weight:600">${l.n}</div><div style="font-size:11px;color:var(--t3)">${l.t}</div></div></div>`).join('');}
-function spToggle(){spOn=!spOn;document.getElementById('sp-play').textContent=spOn?'⏸':'▶';showToast(spOn?'Now playing: Lofi Study Session':'Paused','♪');}
+// ════════════ MUSIC (real Spotify embeds) ════════════
+function rMusic(){
+  rPicks();rSpotiSaved();
+  const box=document.getElementById('sp-embed');
+  if(box&&!box.innerHTML){const d=SPOTI[0]||SP_PICKS[0];if(d)renderEmbed(d.type,d.id);}
+}
+function renderEmbed(type,id){
+  document.getElementById('sp-embed').innerHTML=`<iframe title="Spotify player" style="border-radius:14px;border:1px solid var(--border)" src="https://open.spotify.com/embed/${esc(type)}/${esc(id)}?utm_source=studyos&theme=0" width="100%" height="380" frameborder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>`;
+}
+function parseSpotify(u){
+  u=(u||'').trim();
+  let m=u.match(/open\.spotify\.com\/(?:intl-[a-z]+\/)?(playlist|album|track|artist|episode|show)\/([A-Za-z0-9]+)/);
+  if(m)return{type:m[1],id:m[2]};
+  m=u.match(/spotify:(playlist|album|track|artist|episode|show):([A-Za-z0-9]+)/);
+  if(m)return{type:m[1],id:m[2]};
+  return null;
+}
+function loadSpotify(){
+  const p=parseSpotify(val('sp-url'));
+  if(!p){showToast('Paste a valid Spotify link','⚠️');return;}
+  renderEmbed(p.type,p.id);
+  if(!SPOTI.find(s=>s.id===p.id)){SPOTI.unshift({name:cap(p.type)+' · '+p.id.slice(0,6),type:p.type,id:p.id});dbSave();rSpotiSaved();}
+  const i=document.getElementById('sp-url');if(i)i.value='';
+  showToast('Loaded in player ♪','🎧');
+}
+function loadPick(type,id,name){
+  renderEmbed(type,id);
+  if(!SPOTI.find(s=>s.id===id)){SPOTI.unshift({name,type,id});dbSave();rSpotiSaved();}
+  showToast('Loaded: '+name,'🎧');
+}
+function rPicks(){
+  document.getElementById('plists').innerHTML=SP_PICKS.map(p=>`
+    <div class="trow" onclick="loadPick('${p.type}','${p.id}','${esc(p.name).replace(/'/g,"\\'")}')">
+      <span style="font-size:20px">🎧</span>
+      <div><div style="font-size:13px;font-weight:600">${esc(p.name)}</div>
+      <div style="font-size:11px;color:var(--t3)">Spotify editorial · tap to play</div></div></div>`).join('');
+}
+function rSpotiSaved(){
+  const box=document.getElementById('sp-saved');if(!box)return;
+  box.innerHTML=SPOTI.length?SPOTI.map(s=>`
+    <div class="res-row">
+      <span style="font-size:18px">🎵</span>
+      <div style="flex:1;min-width:0;cursor:pointer" onclick="renderEmbed('${s.type}','${s.id}')">
+        <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(s.name)}</div>
+        <div style="font-size:11px;color:var(--t3)">${esc(s.type)}</div></div>
+      <div class="icon-x" onclick="delSpoti('${s.id}')">✕</div>
+    </div>`).join(''):'<div class="empty" style="padding:18px"><span class="e-ic">🎧</span>No saved playlists yet — paste a Spotify link above.</div>';
+}
+function delSpoti(id){SPOTI=SPOTI.filter(s=>s.id!==id);dbSave();rSpotiSaved();showToast('Removed','🗑️');}
+
+// ════════════ CALENDAR + STREAKS ════════════
+let calY,calM;
+function studiedDay(ds){return (HIST[ds]>0)||(MARKS[ds]&&MARKS[ds].type==='study');}
+function calcStreak(){
+  let s=0,day=new Date();
+  if(!studiedDay(day.toDateString()))day.setDate(day.getDate()-1); // grace: today not done yet
+  while(studiedDay(day.toDateString())){s++;day.setDate(day.getDate()-1);}
+  return s;
+}
+function longestStreak(){
+  const set=new Set();
+  Object.keys(HIST).forEach(d=>{if(HIST[d]>0)set.add(new Date(d).setHours(0,0,0,0));});
+  Object.keys(MARKS).forEach(d=>{if(MARKS[d].type==='study')set.add(new Date(d).setHours(0,0,0,0));});
+  const ts=[...set].sort((a,b)=>a-b);
+  let best=0,cur=0,prev=null;
+  ts.forEach(t=>{cur=(prev!==null&&t-prev===864e5)?cur+1:1;best=Math.max(best,cur);prev=t;});
+  return best;
+}
+function calToday(){const n=new Date();calY=n.getFullYear();calM=n.getMonth();rCalendar();}
+function calMove(d){if(calY===undefined)calToday();calM+=d;if(calM<0){calM=11;calY--;}if(calM>11){calM=0;calY++;}rCalendar();}
+function rCalendar(){
+  const title=document.getElementById('cal-title');if(!title)return;
+  if(calY===undefined){const n=new Date();calY=n.getFullYear();calM=n.getMonth();}
+  streak=calcStreak();
+  title.textContent=new Date(calY,calM,1).toLocaleDateString(undefined,{month:'long',year:'numeric'});
+  const monthStudied=Object.keys(HIST).filter(d=>{const x=new Date(d);return x.getMonth()===calM&&x.getFullYear()===calY&&HIST[d]>0;}).length;
+  document.getElementById('cal-stats').innerHTML=[
+    ['🔥 '+streak,'Current streak'],['🏆 '+longestStreak(),'Longest streak'],
+    [monthStudied,'Days studied · '+new Date(calY,calM,1).toLocaleDateString(undefined,{month:'short'})],
+    [Object.keys(MARKS).length,'Marked days'],
+  ].map(([v,l])=>`<div class="cal-stat"><div class="v">${v}</div><div class="l">${esc(l)}</div></div>`).join('');
+  const dow=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  let html=dow.map(d=>`<div class="cal-dow">${d}</div>`).join('');
+  const startDow=new Date(calY,calM,1).getDay();
+  const daysInMonth=new Date(calY,calM+1,0).getDate();
+  const prevDays=new Date(calY,calM,0).getDate();
+  const todayStr=new Date().toDateString();
+  for(let i=startDow-1;i>=0;i--)html+=`<div class="cal-cell out"><div class="cal-dnum">${prevDays-i}</div></div>`;
+  for(let d=1;d<=daysInMonth;d++){
+    const ds=new Date(calY,calM,d).toDateString();
+    const isToday=ds===todayStr;
+    const mins=Math.round(HIST[ds]||0);
+    const mk=MARKS[ds];
+    let dots='';
+    if(mins>0)dots+=`<span class="cal-dot" style="background:${MARK_TYPES.study.c}"></span>`;
+    if(mk&&mk.type!=='study')dots+=`<span class="cal-dot" style="background:${MARK_TYPES[mk.type].c}"></span>`;
+    else if(mk&&mk.type==='study'&&mins===0)dots+=`<span class="cal-dot" style="background:${MARK_TYPES.study.c}"></span>`;
+    html+=`<div class="cal-cell ${isToday?'today':''}" onclick="openDay('${ds}')" title="${esc(mk?MARK_TYPES[mk.type].lbl+(mk.note?': '+mk.note:''):'')}">
+      <div class="cal-dnum" ${isToday?'style="color:var(--violet)"':''}>${d}</div>
+      ${mins>0?`<div class="cal-min">${mins}m</div>`:''}
+      <div class="cal-dots">${dots}</div></div>`;
+  }
+  document.getElementById('cal-grid').innerHTML=html;
+  document.getElementById('cal-legend').innerHTML=Object.entries(MARK_TYPES).map(([k,v])=>`<div class="cal-leg"><i style="background:${v.c}"></i>${v.lbl}</div>`).join('');
+}
+function openDay(ds){
+  const mins=Math.round(HIST[ds]||0);const mk=MARKS[ds]||{};
+  modal(new Date(ds).toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'}),`
+    <div class="sub">${mins>0?'📚 '+mins+' min of focused study logged.':'No study time logged this day.'}</div>
+    <div class="row"><label class="flbl">Mark this day as</label>
+      <select class="field" id="md-type"><option value="">— none —</option>
+      ${Object.entries(MARK_TYPES).map(([k,v])=>`<option value="${k}" ${mk.type===k?'selected':''}>${v.lbl}</option>`).join('')}</select></div>
+    <div class="row"><label class="flbl">Note (optional)</label><input class="field" id="md-note" value="${esc(mk.note||'')}" placeholder="e.g. Physics mock test"></div>
+  `,()=>{
+    const t=val('md-type');
+    if(t)MARKS[ds]={type:t,note:val('md-note').trim()};else delete MARKS[ds];
+    streak=calcStreak();dbSave();rCalendar();rHmap();updateHero();updateStats();showToast('Calendar updated','📅');
+  });
+}
+function markToday(){
+  const ds=new Date().toDateString();
+  MARKS[ds]={type:'study',note:(MARKS[ds]&&MARKS[ds].note)||'Studied'};
+  streak=calcStreak();dbSave();calToday();updateHero();updateStats();showToast('Marked today studied 🔥','✓');
+}
 
 // ════════════ AI TUTOR ════════════
 function rDrawerWelcome(){
