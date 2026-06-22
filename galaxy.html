@@ -268,41 +268,56 @@ html,body{width:100%;height:100%;overflow:hidden;background:#010308;
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
-// ── DATA ──────────────────────────────────────────────────────────
-function getSubProg(){
+// ── DATA (synced live with StudyOS localStorage) ──────────────────
+const GCAT={
+  m:{name:'Mathematics',sym:'∑',hex:'#8052ff',tp:['Algebra','Calculus','Geometry','Trigonometry','Statistics','Probability']},
+  p:{name:'Physics',sym:'φ',hex:'#00d4ff',tp:['Mechanics','Thermodynamics','Electromagnetism','Optics','Waves','Modern Physics']},
+  c:{name:'Chemistry',sym:'⚗',hex:'#ffb829',tp:['Organic','Inorganic','Physical','Bonding','Electrochemistry','Thermochem']},
+  b:{name:'Biology',sym:'⬡',hex:'#15e8a0',tp:['Cell Biology','Genetics','Ecology','Evolution','Physiology','Botany']},
+  e:{name:'English',sym:'A',hex:'#b8b8ff',tp:['Grammar','Literature','Writing','Comprehension','Vocabulary','Poetry']},
+  h:{name:'History',sym:'⚔',hex:'#ff6b8a',tp:['Ancient','Medieval','Modern','World Wars','Revolutions','Contemporary']},
+  g:{name:'Geography',sym:'⊕',hex:'#4dd8a8',tp:['Physical','Human','Maps','Climate','Economic','Environment']},
+  cs:{name:'Computer Sci',sym:'⌨',hex:'#39c5ff',tp:['Programming','Data Structures','Algorithms','Databases','Networks','AI']},
+  ec:{name:'Economics',sym:'$',hex:'#f5b942',tp:['Micro','Macro','Trade','Money','Markets','Development']},
+  s:{name:'General Science',sym:'⚛',hex:'#9b7bff',tp:['Matter','Energy','Life','Earth','Space','Method']},
+  lit:{name:'Literature',sym:'📖',hex:'#ff9ab0',tp:['Prose','Poetry','Drama','Criticism','Authors','Themes']},
+  fl:{name:'Foreign Language',sym:'🗣',hex:'#7ad6ff',tp:['Vocabulary','Grammar','Speaking','Listening','Reading','Writing']},
+  art:{name:'Art & Design',sym:'🎨',hex:'#ff8fb1',tp:['Drawing','Color','History','Composition','Media','Critique']},
+  bus:{name:'Business',sym:'💼',hex:'#ffc14d',tp:['Management','Marketing','Finance','Strategy','HR','Operations']},
+  psy:{name:'Psychology',sym:'🧠',hex:'#b79bff',tp:['Cognition','Development','Social','Clinical','Research','Biology']},
+  civ:{name:'Civics / Politics',sym:'⚖',hex:'#ff7d9c',tp:['Government','Constitution','Rights','Law','Policy','Elections']},
+  acc:{name:'Accountancy',sym:'🧮',hex:'#ffcf66',tp:['Ledgers','Statements','Costing','Audit','Tax','Ratios']},
+  env:{name:'Environmental Sci',sym:'🌍',hex:'#3fd99a',tp:['Ecosystems','Pollution','Climate','Conservation','Resources','Policy']},
+};
+function hex2int(h){return parseInt(String(h).replace('#',''),16)||0x8052ff;}
+function loadSubs(){
+  let saved=[];
   try{
     const db=JSON.parse(localStorage.getItem('studyos_v1')||'{}');
     const sp=db.subProgress||{};
-    const sa=db.subs||[];
-    return id=>{
-      if(sp[id]!==undefined)return sp[id];
-      const f=sa.find(x=>x.id===id);return f?f.p:null;
+    saved=(db.subs||[]).map(s=>({id:s.id,p:(sp[s.id]!==undefined?sp[s.id]:s.p)||0}));
+  }catch(e){}
+  if(!saved.length){ // demo fallback so galaxy is never empty
+    saved=[{id:'m',p:65},{id:'p',p:48},{id:'c',p:62},{id:'b',p:30},{id:'e',p:80},{id:'h',p:45}];
+  }
+  const tilts=[12,28,-18,38,-40,50,-30,22,-52,16,-24,44];
+  const n=saved.length;
+  return saved.map((sv,i)=>{
+    const k=GCAT[sv.id]||{name:sv.id,sym:'•',hex:'#8052ff',tp:[]};
+    return {
+      id:sv.id,name:k.name,sym:k.sym,hex:k.hex,col:hex2int(k.hex),
+      orbit:10+i*(16/Math.max(1,n)),
+      spd:Math.max(.003,.0088-i*.0007),
+      tilt:tilts[i%tilts.length],
+      ph:(i/Math.max(1,n))*Math.PI*2,
+      prog:Math.round(sv.p||0),
+      topics:(k.tp&&k.tp.length)?k.tp:['Core','Practice','Review']
     };
-  }catch{return ()=>null}
+  });
 }
-const getProg=getSubProg();
-
-const SUBS=[
-  {id:'m',name:'Mathematics',sym:'∑',hex:'#8052ff',col:0x8052ff,
-   orbit:10,spd:.0085,tilt:12,ph:0,   prog:getProg('m')??65,
-   topics:['Calculus','Algebra','Trigonometry','Statistics','Coord. Geometry','Vectors']},
-  {id:'p',name:'Physics',    sym:'φ',hex:'#00d4ff',col:0x00d4ff,
-   orbit:15,spd:.0062,tilt:28,ph:1.05,prog:getProg('p')??48,
-   topics:['Mechanics','Thermodynamics','Electromagnetism','Optics','Modern Physics','Waves']},
-  {id:'c',name:'Chemistry',  sym:'⚗',hex:'#ffb829',col:0xffb829,
-   orbit:12,spd:.0078,tilt:-18,ph:2.1,prog:getProg('c')??62,
-   topics:['Organic','Inorganic','Physical','Analytical','Electrochemistry','Bonding']},
-  {id:'b',name:'Biology',    sym:'⬡',hex:'#15e8a0',col:0x15e8a0,
-   orbit:18,spd:.0048,tilt:38,ph:3.14,prog:getProg('b')??30,
-   topics:['Cell Biology','Genetics','Ecology','Evolution','Physiology','Biotechnology']},
-  {id:'e',name:'English',    sym:'A', hex:'#b8b8ff',col:0xb8b8ff,
-   orbit:14,spd:.0068,tilt:-40,ph:4.2,prog:getProg('e')??80,
-   topics:['Grammar','Literature','Writing','Comprehension','Vocabulary','Analysis']},
-  {id:'h',name:'History',    sym:'⚔',hex:'#ff6b8a',col:0xff6b8a,
-   orbit:17,spd:.0040,tilt:50,ph:5.25,prog:getProg('h')??45,
-   topics:['Ancient','Medieval','Modern History','World Wars','Independence','Contemporary']},
-];
-const CONNS=[[0,1],[1,2],[0,2],[2,3],[0,4],[1,4],[3,5]];
+const SUBS=loadSubs();
+const CONNS=[];
+if(SUBS.length>1){for(let i=0;i<SUBS.length;i++){CONNS.push([i,(i+1)%SUBS.length]);if(i%2===0&&i+2<SUBS.length)CONNS.push([i,i+2]);}}
 
 // ── CIRCLE SPRITE TEXTURE ─────────────────────────────────────────
 function makeStarTex(size=64){
@@ -766,7 +781,7 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape')closePan();
   if(e.key==='r'||e.key==='R')resetCam();
   if(e.key==='a'||e.key==='A')toggleRot();
-  if(e.key>='1'&&e.key<='6'){const i=+e.key-1;flyTo(i);openPan(i);}
+  if(e.key>='1'&&e.key<='9'){const i=+e.key-1;if(i<SUBS.length){flyTo(i);openPan(i);}}
 });
 window.addEventListener('resize',()=>{
   cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();
